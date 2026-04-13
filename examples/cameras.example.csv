@@ -1,4 +1,0 @@
-name,brand,ip,rtsp_port,rtsp_path,transport,credential_id
-cam_demo_hik,hikvision,192.0.2.10,554,/Streaming/Channels/101,tcp,lab-default
-cam_demo_dahua,dahua,198.51.100.20,554,/cam/realmonitor?channel=1&subtype=0,tcp,lab-default
-cam_demo_axis,axis,203.0.113.30,554,/axis-media/media.amp,tcp,lab-default

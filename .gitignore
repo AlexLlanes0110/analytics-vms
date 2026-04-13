@@ -11,3 +11,5 @@ data/
 .local/
 *.local.csv
 .DS_Store
+*.real.csv
+*_real*.csv
