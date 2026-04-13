@@ -1,19 +1,21 @@
-# analytics-vms
+# VMS HealthCheck
 
-**Type:** Script (+ optional minimal web report)
+Sistema batch/CLI para validar **“visualización real”** de cámaras vía RTSP:
+- Entrada: CSV de cámaras
+- Proceso: RTSP -> ffprobe -> extracción de frames -> detectores black/freeze
+- Salida: CSV con estados normalizados y métricas
 
-## What it is
-Script-first pipeline that ingests VMS data and generates a final report (HTML/PDF/CSV). Optional tiny front just to view/print the report.
+## MVPs
+- **MVP-1:** CLI (CSV in -> CSV out) con concurrencia controlada (default 15)
+- **MVP-2:** UI simple para subir CSV y ver resultados en tabla
+- **MVP-3:** Dashboard/histórico (tendencias, caídas, KPIs)
 
-## MVP
-- [ ] Input format defined (CSV/JSON/DB export)
-- [ ] Generate `report.html` (and/or CSV)
-- [ ] Basic KPIs + summary
-- [ ] Reproducible run instructions
+## Quickstart (MVP-1)
+1) Ver contrato del CSV: `docs/csv-contract.md`
+2) Especificación MVP-1: `docs/mvp-1-spec.md`
+3) Performance/red: `docs/performance-and-network.md`
 
-## Output
-- `out/report.html`
-- `out/summary.csv`
+> Nota: este repo **NO** contiene IPs reales, credenciales, CSV reales ni evidencias.
 
-## Notes
-No secrets in repo (.env, keys).
+## Seguridad
+Ver `docs/security.md`.
