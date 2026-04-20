@@ -35,9 +35,9 @@ Contenido permitido:
 
 Ejemplos:
 
-- `examples/cameras.input.example.csv`
-- `examples/results.detailed.example.csv`
-- `examples/results.summary.example.csv`
+- `examples/vms_input_dummy_repo.csv`
+- `examples/vms_output_dummy_detailed_example.csv`
+- `examples/vms_output_dummy_summary_by_site_example.csv`
 
 ---
 
@@ -53,13 +53,27 @@ Contenido prohibido en GitHub:
 - archivos temporales de laboratorio
 - exports locales de pruebas
 
-Ejemplos de rutas locales válidas:
+---
 
-- `.local/cameras.input.real.csv`
-- `.local/results.detailed.real.csv`
-- `.local/results.summary.real.csv`
-- `data/`
-- `.evidence/`
+## Layout local permitido
+
+Rutas locales válidas:
+
+```text
+.local/
+├─ vms_input_real_local.csv
+├─ evidence/
+└─ output/
+```
+
+### Ejemplos reales que deben permanecer solo en local
+
+- `.local/vms_input_real_local.csv`
+- `.local/evidence/<run_id>/<camera_name>/probe.txt`
+- `.local/evidence/<run_id>/<camera_name>/detect.txt`
+- `.local/evidence/<run_id>/<camera_name>/frames/frame_01.jpg`
+- `.local/output/<run_id>/vms_output_real_detailed.csv`
+- `.local/output/<run_id>/vms_output_real_summary_by_site.csv`
 
 ---
 
@@ -78,8 +92,6 @@ README.md
 
 ```text
 .local/
-data/
-.evidence/
 ```
 
 ---
@@ -90,14 +102,11 @@ data/
 
 Usar:
 
-- `credential_id`
-
-y resolver credenciales fuera del repo mediante:
-
-- variables de entorno
-- secret store
-- archivo local no versionado
-- configuración local privada
+- `credential_id` y resolver credenciales fuera del repo mediante:
+  - variables de entorno
+  - secret store
+  - archivo local no versionado
+  - configuración local privada
 
 ### Campo temporal de laboratorio
 
@@ -107,7 +116,8 @@ Reglas:
 
 - nunca se suben a Git
 - nunca se dejan en `examples/`
-- nunca se incluyen en capturas o logs públicos
+- nunca se incluyen en documentación pública
+- nunca se dejan visibles en logs o capturas compartidas
 
 ---
 
@@ -119,6 +129,36 @@ Cualquier log o evidencia debe cumplir:
 - no exponer tokens
 - no exponer URL completas con auth embebida
 - no subirse a GitHub
+
+Esto aplica a:
+
+- `probe.txt`
+- `detect.txt`
+- stderr de herramientas
+- capturas de consola
+- evidencias JPG
+- reportes reales
+
+---
+
+## Limpieza operativa
+
+Para laboratorio y operación local, se recomienda que cada nueva corrida:
+
+- conserve `.local/vms_input_real_local.csv`
+- limpie el contenido de `.local/evidence/`
+- limpie el contenido de `.local/output/`
+- recree estructura limpia para la nueva ejecución
+
+### Motivo
+
+- evitar acumulación innecesaria de artefactos
+- evitar confusión entre corridas viejas y nuevas
+- reducir uso de disco
+
+### Regla de seguridad
+
+La limpieza debe aplicarse solo a `evidence/` y `output/`, nunca al inventario real de entrada salvo que el operador lo decida explícitamente.
 
 ---
 
@@ -139,8 +179,9 @@ Todo archivo dummy debe:
 Antes de hacer commit:
 
 1. ejecutar `git status`
-2. confirmar que no aparezcan archivos de `.local/`, `data/` o `.evidence/`
+2. confirmar que no aparezcan archivos de `.local/`
 3. confirmar que `examples/` solo contiene dummy
+4. confirmar que no haya evidencia real ni outputs reales en staging
 
 Si algo sensible fue agregado accidentalmente al índice, removerlo con:
 
@@ -161,15 +202,12 @@ git rm --cached -r .local
 El repositorio debe ignorar como mínimo:
 
 - `.local/`
-- `data/`
-- `.evidence/`
 - `.env`
 - `*.local.csv`
-
-Y puede reforzarse con patrones adicionales como:
-
 - `*.real.csv`
 - `*_real*.csv`
+
+Si más adelante aparecen rutas operativas adicionales, también deben quedar ignoradas.
 
 ---
 
@@ -182,6 +220,7 @@ Antes de push o PR, verificar:
 - ¿hay outputs reales?
 - ¿hay evidencia?
 - ¿hay logs sensibles?
+- ¿hay capturas que muestren credenciales?
 
 Si la respuesta es sí para cualquiera, **no se sube**.
 

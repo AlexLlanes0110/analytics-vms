@@ -13,9 +13,11 @@ El objetivo de este proyecto es leer un inventario de cámaras desde CSV, ejecut
 ## Qué hace
 
 ### Entrada
+
 - CSV de inventario de cámaras
 
 ### Proceso
+
 - RTSP
 - `ffprobe` para metadata
 - `ffmpeg` para extracción de frames
@@ -23,6 +25,7 @@ El objetivo de este proyecto es leer un inventario de cámaras desde CSV, ejecut
 - consolidación de resultado
 
 ### Salida
+
 - CSV detallado por cámara
 - CSV resumen por sitio
 
@@ -30,30 +33,35 @@ El objetivo de este proyecto es leer un inventario de cámaras desde CSV, ejecut
 
 ## Criterio clave
 
-**“OK real” significa que se pudieron decodificar frames (`frames_ok = 1`)**, no solo que exista conectividad o que el endpoint responda parcialmente.
+**“OK real” significa que se pudieron decodificar frames (`frames_ok = 1`)**, no solo que exista conectividad, que el host responda o que `ffprobe` devuelva metadata.
 
 Esto es importante porque una cámara puede:
 
 - responder a nivel red
+- abrir puerto RTSP
 - devolver metadata
 - pero aun así no entregar video consumible
+- o entregar video con problemas visuales como negro o congelamiento
 
 ---
 
 ## Alcance actual
 
 ### MVP-1
+
 CLI batch en Python:
 
 - CSV in → CSV out
-- concurrencia controlada
 - validación por cámara
 - resumen por sitio
+- concurrencia controlada
+- evidencia local
 - sin UI
 - sin dashboard
 - sin base de datos histórica
 
 ### MVP-2
+
 Frontend básico para:
 
 - cargar CSV
@@ -61,6 +69,7 @@ Frontend básico para:
 - visualizar resultados en tabla
 
 ### MVP-3
+
 Dashboard / histórico:
 
 - tendencias
@@ -84,6 +93,7 @@ El sistema soporta sitios de tipo:
 ### Ejemplos de roles
 
 #### PMI
+
 - `PTZ`
 - `FJ1`
 - `FJ2`
@@ -91,6 +101,7 @@ El sistema soporta sitios de tipo:
 - `LPR`
 
 #### ARC
+
 - `FIXED_1`
 - `FIXED_2`
 - `LPR_1`
@@ -107,34 +118,45 @@ en la columna `traffic_direction`.
 
 ---
 
-## Estructura esperada del repo
+## Estructura operativa esperada
 
 ```text
 analytics-vms/
 ├─ README.md
 ├─ .gitignore
 ├─ docs/
-│  ├─ mvps.md
-│  ├─ mvp-1-spec.md
 │  ├─ csv-contract.md
+│  ├─ mvp-1-spec.md
+│  ├─ mvps.md
 │  ├─ performance-and-network.md
-│  └─ security.md
+│  ├─ security.md
+│  └─ runtime-flow.md
 ├─ examples/
-│  ├─ cameras.input.example.csv
-│  ├─ results.detailed.example.csv
-│  └─ results.summary.example.csv
+│  ├─ vms_input_dummy_repo.csv
+│  ├─ vms_output_dummy_detailed_example.csv
+│  └─ vms_output_dummy_summary_by_site_example.csv
 ├─ .local/
-│  ├─ cameras.input.real.csv
-│  ├─ results.detailed.real.csv
-│  └─ results.summary.real.csv
+│  ├─ vms_input_real_local.csv
+│  ├─ evidence/
+│  └─ output/
 └─ src/
 ```
+
+### Nota sobre `.local/`
+
+- `vms_input_real_local.csv` vive localmente y no se versiona.
+- `evidence/` guarda artefactos por corrida:
+  - `probe.txt`
+  - `detect.txt`
+  - `frames/*.jpg`
+- `output/` guarda los dos CSV reales por corrida.
 
 ---
 
 ## Documentación clave
 
 ### Contrato CSV
+
 Ver:
 
 ```text
@@ -147,9 +169,10 @@ Ahí se define:
 - qué columnas lleva el output detallado
 - qué columnas lleva el output resumen
 - reglas de validación
-- ejemplos dummy
+- semántica de estados
 
 ### Especificación funcional del MVP-1
+
 Ver:
 
 ```text
@@ -164,7 +187,25 @@ Ahí se define:
 - configuración
 - criterios de aceptación
 
+### Flujo de ejecución
+
+Ver:
+
+```text
+docs/runtime-flow.md
+```
+
+Ahí se define:
+
+- flujo end-to-end por cámara
+- qué hace `ffprobe`
+- qué hace la extracción de frames
+- qué hacen `blackdetect` y `freezedetect`
+- layout de evidencia y output
+- política de limpieza por corrida
+
 ### Seguridad
+
 Ver:
 
 ```text
@@ -177,9 +218,10 @@ Ahí se define:
 - qué no se sube al repo
 - uso de `examples/`
 - uso de `.local/`
-- manejo de credenciales y outputs
+- manejo de credenciales, outputs y evidencia
 
 ### Performance y red
+
 Ver:
 
 ```text
@@ -192,19 +234,22 @@ docs/performance-and-network.md
 
 1. Revisar el contrato de CSV en `docs/csv-contract.md`
 2. Revisar la especificación funcional en `docs/mvp-1-spec.md`
-3. Revisar restricciones de seguridad en `docs/security.md`
-4. Usar un archivo dummy de `examples/` como referencia
-5. Colocar inventario real solo en `.local/`
-6. Ejecutar el CLI sobre el CSV real
-7. Revisar:
+3. Revisar el flujo de ejecución en `docs/runtime-flow.md`
+4. Revisar restricciones de seguridad en `docs/security.md`
+5. Usar un archivo dummy de `examples/` como referencia
+6. Colocar inventario real solo en `.local/vms_input_real_local.csv`
+7. Ejecutar el CLI sobre el CSV real
+8. Revisar:
    - output detallado por cámara
    - output resumen por sitio
+   - evidencia local de la corrida
 
 ---
 
 ## Archivos dummy vs archivos reales
 
 ### Archivos dummy
+
 Se usan para:
 
 - documentación
@@ -219,77 +264,20 @@ examples/
 ```
 
 ### Archivos reales
+
 Se usan para:
 
 - inventario operativo real
 - pruebas locales
 - ejecución del batch
 - resultados reales
+- evidencia operativa
 
 Viven localmente en:
 
 ```text
 .local/
 ```
-
----
-
-## Seguridad
-
-> Este repo **NO** debe contener IPs reales, credenciales reales, CSV reales ni evidencia operativa.
-
-Reglas base:
-
-- `examples/` solo contiene dummy
-- `.local/` solo contiene archivos reales/locales
-- outputs reales no se suben
-- credenciales no se suben
-- evidencia no se sube
-- logs sensibles no se suben
-
----
-
-## `.gitignore`
-
-El repositorio ya debe ignorar al menos:
-
-- `.local/`
-- `data/`
-- `.evidence/`
-- `.env`
-- `*.local.csv`
-
-Y puede reforzarse con:
-
-- `*.real.csv`
-- `*_real*.csv`
-
----
-
-## Diseño del output
-
-### Output detallado
-Permite ver, por cámara:
-
-- identidad del sitio
-- identidad de la cámara
-- IP
-- `status`
-- `failure_stage`
-- metadata
-- `frames_ok`
-- eventos de black/freeze
-- error resumido
-
-### Output resumen
-Permite ver, por sitio:
-
-- total de cámaras
-- cuántas están OK
-- cuántas fallaron
-- conteo por tipo de falla
-
-Esto deja listo el camino para un dashboard futuro.
 
 ---
 
@@ -308,22 +296,84 @@ Resumen conceptual:
 - `OK` → sí hubo frames decodificados
 - `DOWN` → no hubo conectividad real o hubo timeout total
 - `NO_RTSP` → falló negociación/auth/path RTSP
-- `NO_FRAMES` → hubo metadata, pero no video consumible
+- `NO_FRAMES` → hubo metadata o negociación útil, pero no video consumible
 - `ERROR` → fallo inesperado
 
 ---
 
 ## Performance y control de carga
 
-Este proceso abre streams RTSP y genera tráfico.  
-Para evitar saturar red, cámaras o enlaces, el MVP trabaja con concurrencia controlada.
+Este proceso abre streams RTSP, decodifica video y genera tráfico.
 
-Defaults acordados:
+Para evitar saturar red, cámaras, disco o CPU del host, el MVP-1 trabaja con control de carga explícito:
 
-- `workers = 15`
-- `batch-size = 15`
+- `batch_size = 15`
+- `max_workers = 3`
 
-La recomendación es empezar con esos valores y ajustar según comportamiento real del entorno.
+Interpretación:
+
+- el inventario se divide en bloques de 15 cámaras
+- dentro de cada bloque se procesan 3 cámaras en simultáneo
+- los resultados se escriben de forma incremental
+
+---
+
+## Limpieza operativa por corrida
+
+Para evitar acumulación de frames y logs viejos, el comportamiento esperado del runtime en laboratorio es:
+
+- conservar `.local/vms_input_real_local.csv`
+- limpiar el contenido previo de:
+  - `.local/evidence/`
+  - `.local/output/`
+- recrear carpetas de la nueva corrida
+- generar evidencia y outputs solo para la ejecución actual
+
+Esto evita llenar disco con artefactos históricos innecesarios.
+
+---
+
+## Seguridad
+
+> Este repo **NO** debe contener IPs reales, credenciales reales, CSV reales ni evidencia operativa.
+
+Reglas base:
+
+- `examples/` solo contiene dummy
+- `.local/` solo contiene archivos reales/locales
+- outputs reales no se suben
+- credenciales no se suben
+- evidencia no se sube
+- logs sensibles no se suben
+
+---
+
+## Diseño del output
+
+### Output detallado
+
+Permite ver, por cámara:
+
+- identidad del sitio
+- identidad de la cámara
+- IP
+- `status`
+- `failure_stage`
+- metadata
+- `frames_ok`
+- eventos de black/freeze
+- error resumido
+
+### Output resumen
+
+Permite ver, por sitio:
+
+- total de cámaras
+- cuántas están OK
+- cuántas fallaron
+- conteo por tipo de falla
+
+Esto deja listo el camino para un dashboard futuro.
 
 ---
 
@@ -354,6 +404,8 @@ En esta etapa, el foco es:
 
 Este repositorio está pensado para construir el sistema por etapas, empezando por un flujo simple y verificable:
 
-**CSV → health check RTSP → resultados estructurados**
+```text
+CSV → health check RTSP → resultados estructurados
+```
 
 El objetivo inmediato no es una UI, sino un backend/CLI confiable que sirva como base para automatización, reporting y dashboard futuro.

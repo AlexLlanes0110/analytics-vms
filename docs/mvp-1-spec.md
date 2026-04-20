@@ -4,11 +4,13 @@
 
 Implementar un CLI batch que reciba un CSV de cámaras y genere resultados de health check por cámara y por sitio.
 
-El objetivo del MVP-1 es validar **video consumible** vía RTSP.  
+El objetivo del MVP-1 es validar **video consumible** vía RTSP.
+
 El criterio central de éxito es:
 
 - **OK real = frames decodificados exitosamente**
-- No basta solo con conectividad o con que `ffprobe` responda
+- No basta solo con conectividad
+- No basta solo con que `ffprobe` responda
 
 ---
 
@@ -16,18 +18,20 @@ El criterio central de éxito es:
 
 ### Incluye
 
-- Lectura de inventario desde CSV
-- Procesamiento batch por cámara
-- Soporte para sitios de tipo:
+- lectura de inventario desde CSV
+- procesamiento batch por cámara
+- soporte para sitios de tipo:
   - `PMI`
   - `ARC`
-- Salida detallada por cámara
-- Salida resumen por sitio
-- Concurrencia controlada
-- Ventanas y timeouts configurables
-- Detección básica de:
+- salida detallada por cámara
+- salida resumen por sitio
+- concurrencia controlada
+- ventanas y timeouts configurables
+- detección básica de:
   - black frames
   - freeze frames
+- evidencia local por corrida
+- limpieza operativa de evidencia/output antes de una nueva corrida
 
 ### No incluye
 
@@ -45,8 +49,8 @@ El criterio central de éxito es:
 ### Regla base
 
 - **1 fila de input = 1 cámara**
-- Un sitio puede contener múltiples cámaras
-- Un sitio puede ser:
+- un sitio puede contener múltiples cámaras
+- un sitio puede ser:
   - `PMI`
   - `ARC`
 
@@ -71,7 +75,7 @@ Roles esperados:
 - `LPR_3`
 - `LPR_4`
 
-y pueden repetirse por dirección operativa:
+Y pueden repetirse por dirección operativa:
 
 - `ENTRY`
 - `EXIT`
@@ -89,7 +93,8 @@ CSV de inventario de cámaras según `docs/csv-contract.md`.
 1. **Output detallado por cámara**
 2. **Output resumen por sitio**
 
-El output detallado sirve para operación y debugging.  
+El output detallado sirve para operación y debugging.
+
 El resumen sirve para lectura rápida y para futura integración con dashboard.
 
 ---
@@ -100,8 +105,8 @@ El resumen sirve para lectura rápida y para futura integración con dashboard.
 |---|---|
 | `OK` | Se lograron decodificar frames. |
 | `DOWN` | No hubo conectividad real / timeout total / servicio inaccesible. |
-| `NO_RTSP` | El endpoint es alcanzable pero falla negociación RTSP, auth o path. |
-| `NO_FRAMES` | `ffprobe` respondió pero no se pudieron decodificar frames. |
+| `NO_RTSP` | El endpoint es alcanzable o parcialmente respondiente, pero falla negociación RTSP, auth o path. |
+| `NO_FRAMES` | Hubo metadata o negociación útil, pero no se pudieron decodificar frames. |
 | `ERROR` | Fallo inesperado no clasificado. |
 
 ### Regla principal
@@ -113,35 +118,36 @@ El resumen sirve para lectura rápida y para futura integración con dashboard.
 ## Pipeline por cámara (alto nivel)
 
 1. **Preparación de contexto**
-   - Leer fila de inventario
-   - Resolver datos necesarios de ejecución
-   - Preparar URL/parametrización RTSP
+   - leer fila de inventario
+   - validar reglas mínimas
+   - normalizar datos
+   - preparar URL/parametrización RTSP
 
-2. **(Opcional) Validación de conectividad**
-   - Reachability básica
-   - Puerto RTSP
-   - Timeouts tempranos
+2. **(Opcional) validación de conectividad**
+   - reachability básica
+   - puerto RTSP
+   - timeouts tempranos
 
 3. **`ffprobe`**
-   - Obtener metadata:
+   - obtener metadata:
      - codec
      - width
      - height
      - fps
 
 4. **`ffmpeg` — extracción de frames**
-   - Intentar decodificar una ventana corta de video
-   - Determinar `frames_ok`
+   - intentar decodificar una ventana corta de video
+   - determinar `frames_ok`
 
 5. **`ffmpeg` — detectores**
    - `blackdetect`
    - `freezedetect`
 
 6. **Consolidación**
-   - Calcular `status`
-   - Calcular `failure_stage`
-   - Escribir output detallado
-   - Agregar resultado al resumen por sitio
+   - calcular `status`
+   - calcular `failure_stage`
+   - escribir output detallado
+   - agregar resultado al resumen por sitio
 
 ---
 
@@ -161,7 +167,8 @@ Una cámara puede quedar en `OK` y aun así tener:
 - `black_events > 0`
 - `freeze_events > 0`
 
-Eso significa que hay señal de video consumible, pero puede existir una alerta de calidad visual.  
+Eso significa que hay señal de video consumible, pero puede existir una alerta de calidad visual.
+
 En MVP-1 estas señales se reportan como métricas; no cambian automáticamente el estado central.
 
 ---
@@ -201,13 +208,13 @@ Debe incluir por sitio:
 
 Parámetros mínimos esperados:
 
-- `workers`
-  - default: `15`
-  - máximo de cámaras procesadas en paralelo
-
-- `batch-size`
+- `batch_size`
   - default: `15`
   - procesa en bloques y permite escritura incremental
+
+- `max_workers`
+  - default: `3`
+  - máximo de cámaras procesadas en paralelo dentro de cada lote
 
 - timeouts
   - configurables
@@ -215,20 +222,25 @@ Parámetros mínimos esperados:
 - ventanas de análisis
   - configurables
 
+- modo de limpieza previa
+  - configurable
+  - en laboratorio, se espera limpiar evidencia/output antes de cada corrida
+
 ---
 
 ## Performance y red
 
-Este proceso abre streams RTSP y genera tráfico.  
+Este proceso abre streams RTSP, decodifica video y genera tráfico.
+
 Por eso el MVP debe ejecutar con throttling controlado.
 
 Recomendaciones iniciales:
 
-- empezar con `workers=15`
-- empezar con `batch-size=15`
+- usar `batch_size = 15`
+- usar `max_workers = 3`
 - usar ventanas cortas de análisis
 - evitar saturar red, cámaras o enlaces
-- correr por ventanas horarias si aplica
+- escribir resultados de forma incremental por lote
 
 ---
 
@@ -240,6 +252,18 @@ La evidencia puede incluir:
 - frames temporales
 - resultados intermedios
 
+Layout esperado:
+
+```text
+.local/evidence/<run_id>/<camera_name>/
+```
+
+Artefactos típicos:
+
+- `probe.txt`
+- `detect.txt`
+- `frames/*.jpg`
+
 Reglas:
 
 - es **local y temporal**
@@ -249,10 +273,41 @@ Reglas:
 
 ---
 
+## Output real
+
+Los resultados reales deben vivir en:
+
+```text
+.local/output/<run_id>/
+```
+
+Archivos esperados:
+
+- `vms_output_real_detailed.csv`
+- `vms_output_real_summary_by_site.csv`
+
+---
+
+## Limpieza operativa
+
+Antes de iniciar una nueva corrida, el runtime debe poder:
+
+- conservar `.local/vms_input_real_local.csv`
+- limpiar `.local/evidence/`
+- limpiar `.local/output/`
+- recrear carpetas de la nueva corrida
+
+Objetivo:
+
+- evitar crecimiento innecesario de disco
+- evitar mezclar evidencia vieja con una corrida nueva
+
+---
+
 ## Seguridad operativa
 
 - `examples/` solo contiene dummy
-- archivos reales viven localmente, idealmente en `.local/`
+- archivos reales viven localmente en `.local/`
 - no se suben IPs reales
 - no se suben credenciales
 - no se suben outputs reales
@@ -275,8 +330,10 @@ Se considera aceptable cuando:
    - `NO_FRAMES`
    - `ERROR`
 6. usa concurrencia controlada
-7. no requiere UI
-8. no escribe secretos ni evidencia al repo
+7. genera evidencia local por corrida
+8. limpia evidencia/output si así se configura
+9. no requiere UI
+10. no escribe secretos ni evidencia al repo
 
 ---
 
