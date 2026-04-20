@@ -2,33 +2,31 @@
 
 ## Objetivo
 
-Documentar el flujo operativo completo del sistema durante una corrida real del CLI.
+Documentar el flujo operativo completo de una corrida real del CLI.
 
 Este documento describe:
 
 - qué entra
 - qué valida el sistema
-- qué hace cada herramienta (`ffprobe`, `ffmpeg`, `blackdetect`, `freezedetect`)
+- qué hace cada herramienta
 - cómo se genera evidencia
 - cómo se clasifican los estados finales
 - cómo se controla la carga de red y CPU
 
 ---
 
-## Resumen ejecutivo
-
-El sistema **no** busca únicamente saber si una cámara responde por red.
-
-El objetivo real es validar si la cámara:
-
-1. es alcanzable por RTSP
-2. entrega metadata de stream
-3. permite decodificar frames reales
-4. no presenta señales visuales relevantes de negro o congelamiento dentro de una ventana corta de prueba
-
-La regla central es:
+## Regla central
 
 > **OK real = `frames_ok = 1`**
+
+El runtime no busca únicamente saber si una cámara responde por red.
+
+La validación real es:
+
+1. si el endpoint RTSP negocia algo útil
+2. si existe metadata de stream
+3. si se pueden decodificar frames reales
+4. si aparecen señales diagnósticas de negro o congelamiento
 
 ---
 
@@ -36,14 +34,14 @@ La regla central es:
 
 ### 1. Lectura del inventario
 
-El CLI lee un CSV de inventario con una fila por cámara.
+El CLI lee un CSV de inventario con **una fila por cámara**.
 
-Cada fila contiene al menos:
+Cada fila contiene, al menos:
 
 - identidad del sitio
 - identidad de la cámara
 - marca
-- IP
+- IP o host
 - puerto RTSP
 - path RTSP
 - transporte
@@ -59,45 +57,47 @@ Antes de abrir streams, el sistema valida:
 - valores permitidos para `site_type`
 - coherencia entre `site_type` y `camera_role`
 - regla de `traffic_direction`
-- existencia de `rtsp_path`
+- presencia de `rtsp_path`
 - existencia de método de autenticación resoluble
-- valores esperados de `transport` y `rtsp_port`
+- valores esperados para `transport`
+- valores esperados para `rtsp_port`
 
-También normaliza datos operativos cuando aplique, por ejemplo:
+También normaliza datos operativos cuando aplique:
 
-- marca en minúsculas
-- vacíos consistentes
 - strings sin espacios accidentales
+- marca en formato consistente
+- vacíos uniformes
+- campos derivados listos para construir la URL RTSP
 
 ---
 
 ### 3. Preparación de la corrida
 
-Antes de iniciar la ejecución, el runtime prepara el entorno local.
+Antes de ejecutar, el runtime prepara el entorno local.
 
-### Entrada real
+#### Input real esperado
 
 ```text
 .local/vms_input_real_local.csv
 ```
 
-### Directorios de salida local
+#### Directorios de salida
 
 ```text
 .local/evidence/
 .local/output/
 ```
 
-### Política de limpieza
+#### Política de limpieza
 
 Para laboratorio y operación local controlada, la corrida debe:
 
 - conservar `.local/vms_input_real_local.csv`
 - limpiar el contenido previo de `.local/evidence/`
 - limpiar el contenido previo de `.local/output/`
-- recrear la estructura de salida para la nueva corrida
+- recrear estructura limpia para la nueva corrida
 
-Esto evita acumulación innecesaria de JPGs, logs y CSVs antiguos.
+Esto evita acumular JPGs, logs y CSVs viejos.
 
 ---
 
@@ -105,20 +105,17 @@ Esto evita acumulación innecesaria de JPGs, logs y CSVs antiguos.
 
 El inventario completo no se procesa de una sola vez.
 
-Se divide en bloques de:
+#### Decisión operativa cerrada
 
 - `batch_size = 15`
-
-Dentro de cada bloque, la concurrencia real es:
-
 - `max_workers = 3`
 
-Interpretación:
+#### Interpretación
 
 - 15 cámaras por lote lógico
 - 3 cámaras en simultáneo dentro de ese lote
 
-Esto permite:
+#### Objetivo
 
 - reducir carga en CPU
 - reducir tráfico RTSP simultáneo
@@ -127,327 +124,178 @@ Esto permite:
 
 ---
 
-## Pipeline por cámara
+### 5. Pipeline por cámara
 
 Cada cámara sigue el mismo pipeline.
 
----
+#### 5.1 Preparación de contexto
 
-### Etapa A — Construcción de URL RTSP
+- tomar fila normalizada
+- construir URL RTSP
+- resolver autenticación
+- preparar carpetas de evidencia
 
-Con la información del CSV se forma el endpoint RTSP final usando:
+#### 5.2 `ffprobe`
 
-- `username`
-- `password`
-- `ip`
-- `rtsp_port`
-- `rtsp_path`
-- `transport`
+Se ejecuta `ffprobe` para intentar obtener metadata del stream.
 
-Ejemplo conceptual:
+Se busca, cuando exista:
 
-```text
-rtsp://<username>:<password>@<ip>:<rtsp_port><rtsp_path>
-```
+- codec
+- width
+- height
+- fps
 
-> En logs públicos o compartidos, la URL nunca debe exponerse con credenciales en texto claro.
+Resultado típico:
 
----
+- `ffprobe_ok = 1` si hubo metadata utilizable
+- `ffprobe_ok = 0` si no se logró abrir o leer el stream
 
-### Etapa B — `ffprobe`
+Importante:
 
-## ¿Para qué sirve?
+`ffprobe_ok = 1` **no implica** automáticamente que la cámara esté `OK`.
 
-`ffprobe` se usa para intentar abrir el stream y extraer metadata de video.
+#### 5.3 `ffmpeg` para frames
 
-## ¿Qué extrae?
+Se ejecuta una ventana corta de prueba para intentar **decodificar frames reales**.
 
-Normalmente:
+Resultado central:
 
-- `codec`
-- `width`
-- `height`
-- `fps`
+- `frames_ok = 1` si hubo frames válidos
+- `frames_ok = 0` si no se logró decodificar video útil
 
-## ¿Qué demuestra?
+Este es el criterio principal para `OK`.
 
-Demuestra que:
+#### 5.4 `blackdetect`
 
-- el endpoint RTSP respondió suficientemente
-- hubo negociación útil del stream
-- existe metadata legible del video
+Se analiza la ventana para detectar periodos de imagen negra.
 
-## ¿Qué NO demuestra?
+Resultado:
 
-No demuestra por sí solo que la cámara esté realmente OK.
+- `black_events`
 
-Puede ocurrir que:
+#### 5.5 `freezedetect`
 
-- el host responda
-- el RTSP negocie
-- exista metadata
-- pero no se logren decodificar frames reales
+Se analiza la ventana para detectar periodos de imagen congelada.
 
-Por eso `ffprobe_ok = 1` **no es suficiente** para clasificar una cámara como `OK`.
+Resultado:
 
----
+- `freeze_events`
 
-### Etapa C — `ffmpeg` para extracción de frames
+#### 5.6 Consolidación
 
-## ¿Para qué sirve?
+Se calculan:
 
-Intentar decodificar frames reales de video dentro de una ventana corta.
-
-## ¿Qué genera?
-
-- varios JPG de evidencia
-- un indicador operativo:
-  - `frames_ok = 1` si la extracción fue exitosa
-  - `frames_ok = 0` si no hubo decodificación útil
-
-## ¿Qué demuestra?
-
-Esta es la prueba fuerte de visualización real.
-
-Si el sistema logra extraer frames válidos, entonces existe video consumible.
-
-Por eso la regla central del MVP-1 es:
-
-> **`frames_ok = 1` define el OK real**
-
----
-
-### Etapa D — `blackdetect`
-
-## ¿Para qué sirve?
-
-Detectar periodos donde la imagen está negra durante una duración mínima.
-
-## ¿Qué produce?
-
-- un conteo de eventos:
-  - `black_events`
-
-## ¿Qué interpreta el sistema?
-
-Si `black_events > 0`, existe señal de imagen negra dentro de la ventana analizada.
-
-## Importante
-
-`black_events` no cambia por sí solo el estado central en MVP-1.
-
-Se reporta como señal diagnóstica adicional de calidad visual.
-
----
-
-### Etapa E — `freezedetect`
-
-## ¿Para qué sirve?
-
-Detectar periodos donde la imagen está congelada, es decir, el stream sigue “vivo” pero los frames no cambian como deberían.
-
-## ¿Qué produce?
-
-- un conteo de eventos:
-  - `freeze_events`
-
-## ¿Qué interpreta el sistema?
-
-Si `freeze_events > 0`, existe señal de congelamiento dentro de la ventana analizada.
-
-## Importante
-
-`freeze_events` tampoco cambia por sí solo el estado central en MVP-1.
-
-Se reporta como señal diagnóstica adicional de calidad visual.
-
----
-
-### Etapa F — Consolidación
-
-Con la información anterior se calculan:
-
-- `is_ok`
 - `status`
 - `failure_stage`
-- `error_type`
-- `error_msg_short`
-
-Y se escribe el resultado detallado por cámara.
-
-Después, los resultados se agregan para generar el resumen por sitio.
+- métricas técnicas
+- error resumido
+- evidencia local
 
 ---
 
-## Estados finales
+### 6. Mapeo de estado final
 
-### `OK`
+#### `OK`
 
-Usar cuando:
+Cuando `frames_ok = 1`.
 
-- se lograron decodificar frames reales
-- `frames_ok = 1`
+#### `DOWN`
 
-Notas:
+Cuando no hubo conectividad útil o el servicio fue inaccesible.
 
-- puede coexistir con `black_events > 0` o `freeze_events > 0`
-- en MVP-1 esas señales no degradan automáticamente el estado central
+#### `NO_RTSP`
 
----
+Cuando el host responde en algún nivel, pero falla auth, path o negociación RTSP.
 
-### `DOWN`
+#### `NO_FRAMES`
 
-Usar cuando:
+Cuando hubo metadata o negociación útil, pero no se pudieron decodificar frames.
 
-- hubo timeout total
-- el servicio no fue alcanzable
-- no hubo conectividad útil hacia el stream
-- hubo falla temprana de acceso al endpoint
+#### `ERROR`
 
-Etapa típica:
-
-- `CONNECT`
+Cuando ocurre un fallo inesperado no clasificado.
 
 ---
 
-### `NO_RTSP`
+### 7. Interpretación de negro y congelamiento
 
-Usar cuando:
+En MVP-1:
 
-- el host puede existir o responder
-- pero falla auth/path/negociación RTSP
-- `ffprobe` no logra obtener metadata útil
+- `black_events`
+- `freeze_events`
 
-Ejemplos típicos:
+son métricas diagnósticas.
 
-- credenciales inválidas
-- path RTSP inválido
-- negociación RTSP fallida
+No cambian automáticamente el estado central.
 
-Etapa típica:
+Ejemplo:
 
-- `FFPROBE`
+- una cámara puede quedar `OK`
+- y además registrar `black_events > 0`
+- o `freeze_events > 0`
 
----
+Eso significa:
 
-### `NO_FRAMES`
-
-Usar cuando:
-
-- hubo metadata o negociación útil
-- pero `ffmpeg` no logró decodificar frames válidos
-- `frames_ok = 0`
-
-Etapa típica:
-
-- `FRAMES`
+- sí hubo video consumible
+- pero existe una alerta de calidad visual
 
 ---
 
-### `ERROR`
+### 8. Evidencia por corrida
 
-Usar cuando:
+La evidencia es local, temporal y no se versiona en GitHub.
 
-- ocurrió una excepción inesperada
-- hubo fallo no clasificable
-- falló alguna etapa de forma no normalizada
-
-Etapas típicas:
-
-- `DETECT`
-- `UNEXPECTED`
-
----
-
-## Interpretación correcta
-
-La lógica operativa correcta es esta:
-
-- conectividad **no equivale** a visualización real
-- metadata **no equivale** a visualización real
-- visualización real = frames decodificados
-- negro y congelamiento son señales diagnósticas de calidad visual
-
-En consecuencia:
-
-- `ffprobe_ok = 1` no basta para `OK`
-- `frames_ok = 1` sí define `OK`
-- `black_events` y `freeze_events` enriquecen el análisis, pero no redefinen el estado central en MVP-1
-
----
-
-## Artefactos locales de una corrida
-
-Ejemplo de layout esperado:
+#### Layout esperado
 
 ```text
 .local/
-├─ vms_input_real_local.csv
 ├─ evidence/
-│  └─ 2026-04-17_230000/
-│     ├─ CAM_001/
-│     │  ├─ probe.txt
-│     │  ├─ detect.txt
-│     │  └─ frames/
-│     │     ├─ frame_01.jpg
-│     │     ├─ frame_02.jpg
-│     │     ├─ frame_03.jpg
-│     │     ├─ frame_04.jpg
-│     │     └─ frame_05.jpg
-│     └─ CAM_002/
+│  └─ <run_id>/
+│     └─ <camera_name>/
+│        ├─ probe.txt
+│        ├─ detect.txt
+│        └─ frames/
+│           ├─ frame_01.jpg
+│           ├─ frame_02.jpg
+│           └─ ...
 └─ output/
-   └─ 2026-04-17_230000/
+   └─ <run_id>/
       ├─ vms_output_real_detailed.csv
       └─ vms_output_real_summary_by_site.csv
 ```
 
----
+#### Reglas de evidencia
 
-## Escritura incremental
-
-La corrida debe ir escribiendo resultados conforme avanza.
-
-Ventajas:
-
-- mejor trazabilidad
-- menor riesgo de perder todo si hay una falla a mitad de ejecución
-- menos presión sobre memoria
-- más claridad operativa por lote
+- no se versiona
+- no debe contener secretos visibles
+- credenciales deben redactarse en logs
+- outputs reales no se suben al repo
 
 ---
 
-## Parámetros operativos iniciales recomendados
+### 9. Escritura de resultados
 
-Valores de arranque para MVP-1:
+El sistema debe escribir:
 
-- `batch_size = 15`
-- `max_workers = 3`
-- `transport = tcp`
-- ventanas cortas de análisis
-- timeouts externos consistentes
+1. output detallado por cámara
+2. output resumen por sitio
 
-La intención es priorizar estabilidad y control de carga sobre velocidad máxima.
+La escritura puede ser incremental por lote para reducir riesgo de pérdida de resultados en corridas largas.
 
 ---
 
-## Reglas de seguridad durante la ejecución
+### 10. Resumen operativo
 
-- no guardar credenciales reales en el repo
-- no exponer URLs con auth en logs compartidos
-- no versionar evidencia ni outputs reales
-- no subir JPGs, `probe.txt`, `detect.txt` ni CSVs reales
-- mantener todo lo real dentro de `.local/`
+La corrida correcta del MVP-1 se interpreta así:
 
----
-
-## Cierre
-
-El flujo correcto del sistema es:
-
-```text
-CSV → validación → RTSP → ffprobe → frames → black/freeze → status → detailed CSV → summary CSV
-```
-
-y la regla central sigue siendo:
-
-> **una cámara solo está realmente OK si hay frames decodificables**
+1. leer CSV
+2. validar y normalizar
+3. preparar `.local/`
+4. dividir en bloques de 15
+5. procesar con máximo 3 concurrentes
+6. ejecutar pipeline por cámara
+7. generar evidencia local
+8. escribir outputs
+9. conservar input real
+10. limpiar evidencia y output antes de la siguiente corrida, si así se configura

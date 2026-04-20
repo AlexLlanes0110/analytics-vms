@@ -4,13 +4,7 @@
 
 Definir reglas operativas para controlar carga de red, CPU, disco y memoria durante la ejecución del health check.
 
-Este sistema abre múltiples streams RTSP, decodifica video y escribe evidencia local. Si se ejecuta sin control, puede:
-
-- saturar CPU
-- generar demasiado tráfico simultáneo
-- castigar disco por escritura de JPGs y logs
-- afectar la estabilidad del host local
-- presionar innecesariamente a las cámaras o a la red
+Este sistema abre múltiples streams RTSP, decodifica video y escribe evidencia local. Sin control, puede saturar recursos o volver inestable la ejecución.
 
 ---
 
@@ -42,50 +36,51 @@ Interpretación:
 
 ### Flujo real
 
-- tomar 15 cámaras
-- procesarlas con máximo 3 concurrentes
-- guardar evidencia y resultados
-- continuar con las siguientes 15
+1. tomar 15 cámaras
+2. procesarlas con máximo 3 concurrentes
+3. guardar evidencia y resultados
+4. continuar con las siguientes 15
 
 ---
 
-## Justificación de esta decisión
+## Justificación
 
-### 1. Red
+### Red
 
 Cada stream RTSP consume ancho de banda real.
 
-Si se abren demasiados streams simultáneos:
+Abrir demasiados streams simultáneos puede:
 
-- se incrementa el tráfico de red
-- se puede afectar el enlace hacia las cámaras
-- se puede presionar el switch, el host o segmentos intermedios
+- aumentar tráfico innecesariamente
+- afectar enlaces hacia las cámaras
+- presionar switches o segmentos intermedios
+- provocar falsos negativos por saturación
 
-### 2. CPU
+### CPU
 
-`ffmpeg` y `ffprobe` consumen CPU, especialmente durante:
+`ffprobe` y `ffmpeg` consumen CPU, especialmente durante:
 
 - apertura de stream
 - negociación
-- decodificación de video
-- filtros de detección
+- decodificación
+- aplicación de filtros
 
-### 3. Disco
+### Disco
 
 Cada corrida puede generar:
 
 - `probe.txt`
 - `detect.txt`
-- varios JPG por cámara
+- frames JPG
 - CSVs de salida
 
-Sin limpieza o control, esto crece rápido.
+Sin limpieza ni control, el crecimiento en disco puede ser rápido.
 
-### 4. Estabilidad operativa
+### Estabilidad operativa
 
-La máquina local de ejecución no se asume como un servidor sobrado de recursos.
+La máquina de ejecución no se asume como un host sobrado de recursos.
 
-Por eso el runtime debe ser conservador.
+El runtime debe ser conservador.
 
 ---
 
@@ -99,173 +94,60 @@ Usar preferentemente:
 
 Motivo:
 
-- mayor estabilidad operativa para RTSP en entornos reales de red
-
-### Timeouts
-
-Usar timeouts externos y consistentes.
-
-Motivo:
-
-- comportamiento más controlable y reproducible que depender solo de timeouts internos de herramientas
+- mayor estabilidad operativa en RTSP para redes reales
 
 ### Ventanas de análisis
 
-Usar ventanas cortas.
+Usar ventanas cortas y suficientes para:
 
-Objetivo:
+- validar metadata
+- intentar decodificar video
+- detectar negro o congelamiento sin abrir streams demasiado tiempo
 
-- validar visualización real sin abrir streams más tiempo del necesario
-- reducir tráfico y CPU
-- evitar pruebas excesivamente largas
+### Escritura
 
----
+Preferir escritura incremental por lote cuando aplique.
 
-## Valores iniciales recomendados
+### Limpieza
 
-Estos valores son una base operativa inicial y pueden quedar configurables en el CLI.
-
-### `ffprobe`
-
-- timeout corto
-- extraer únicamente:
-  - `codec`
-  - `width`
-  - `height`
-  - `fps`
-
-### Extracción de frames
-
-- extraer pocos frames de evidencia
-- objetivo operativo inicial:
-  - 5 frames
-  - frecuencia baja de captura
-  - ventana corta
-
-### Detectores
-
-Base inicial recomendada:
-
-- `blackdetect=d=1.0:pix_th=0.10`
-- `freezedetect=n=0.003:d=5`
-
-Estas configuraciones deben permanecer configurables para futuros ajustes si cambian condiciones reales de escena.
-
----
-
-## Escritura incremental
-
-Los resultados no deben esperar hasta el final de todo el inventario.
-
-Se recomienda:
-
-- consolidar resultados por cámara
-- ir acumulando el resumen por sitio
-- escribir outputs conforme avanza la corrida
-
-Ventajas:
-
-- menos riesgo si el proceso se interrumpe
-- mejor trazabilidad
-- menos presión sobre memoria
-- más facilidad de debugging
-
----
-
-## Evidencia local
-
-La evidencia debe almacenarse solo en local, bajo `.local/evidence/`.
-
-Ejemplo:
-
-```text
-.local/evidence/<run_id>/<camera_name>/
-```
-
-Artefactos típicos:
-
-- `probe.txt`
-- `detect.txt`
-- `frames/*.jpg`
-
----
-
-## Output local
-
-Los CSV reales deben almacenarse solo en local, bajo `.local/output/`.
-
-Ejemplo:
-
-```text
-.local/output/<run_id>/
-```
-
-Archivos esperados:
-
-- `vms_output_real_detailed.csv`
-- `vms_output_real_summary_by_site.csv`
-
----
-
-## Política de limpieza
-
-Para evitar acumulación de artefactos antiguos, se define la siguiente política operativa de laboratorio:
-
-### Antes de cada nueva corrida
+Antes de una nueva corrida:
 
 - conservar `.local/vms_input_real_local.csv`
 - limpiar `.local/evidence/`
 - limpiar `.local/output/`
 
-### Después
+---
 
-- recrear la estructura para la corrida nueva
-- generar solo evidencia y outputs actuales
+## Regla para cambiar la concurrencia
 
-### Motivo
+No subir `max_workers` por intuición.
 
-- evitar crecimiento innecesario en disco
-- evitar mezclar resultados viejos con resultados actuales
-- simplificar análisis operativo
+Solo debe aumentarse después de medir:
+
+- CPU
+- memoria
+- ancho de banda
+- tiempos promedio por cámara
+- estabilidad general del host y la red
 
 ---
 
-## Qué no debe hacerse
+## Señales de que la concurrencia está demasiado alta
 
-- no correr todas las cámaras en paralelo
-- no dejar evidencia histórica crecer indefinidamente
-- no almacenar evidencia real en el repo
-- no usar valores de concurrencia agresivos sin validar carga real
-- no dejar ventanas de stream más largas de lo necesario
-
----
-
-## Reglas de ajuste futuro
-
-Si más adelante se quiere optimizar rendimiento, el orden correcto es:
-
-1. medir consumo real
-2. revisar CPU
-3. revisar tráfico
-4. revisar tiempos promedio por cámara
-5. ajustar primero `max_workers`
-6. ajustar después `batch_size`
-
-No aumentar ambos parámetros a la vez sin medir impacto.
+- CPU sostenida innecesariamente alta
+- timeouts masivos
+- más `NO_RTSP` o `NO_FRAMES` de lo esperado
+- caída fuerte del rendimiento global
+- host local inestable
+- crecimiento excesivo de evidencia en disco
 
 ---
 
-## Conclusión
+## Resumen operativo
 
-La decisión operativa de MVP-1 es:
+Para MVP-1, la configuración base recomendada y cerrada es:
 
 - `batch_size = 15`
 - `max_workers = 3`
 
-porque equilibra:
-
-- control de tráfico
-- estabilidad del host
-- seguridad operativa
-- evidencia suficiente
-- ejecución reproducible
+Eso mantiene el proceso suficientemente conservador para laboratorio y primeras corridas reales.

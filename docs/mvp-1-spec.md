@@ -1,16 +1,28 @@
-# MVP-1 Spec — VMS HealthCheck (CLI)
+# MVP-1 Spec — VMS HealthCheck
 
 ## Objetivo
 
-Implementar un CLI batch que reciba un CSV de cámaras y genere resultados de health check por cámara y por sitio.
+Definir el comportamiento funcional del MVP-1 del sistema.
 
-El objetivo del MVP-1 es validar **video consumible** vía RTSP.
+El MVP-1 consiste en un **CLI batch en Python** que lee un inventario de cámaras desde CSV, ejecuta validaciones RTSP por cámara y genera dos salidas:
 
-El criterio central de éxito es:
+1. output detallado por cámara
+2. output resumen por sitio
 
-- **OK real = frames decodificados exitosamente**
-- No basta solo con conectividad
-- No basta solo con que `ffprobe` responda
+---
+
+## Criterio funcional central
+
+> **OK real = `frames_ok = 1`**
+
+El criterio de éxito operativo no es únicamente la conectividad ni la existencia de metadata, sino la capacidad de **decodificar frames reales**.
+
+No basta con:
+
+- reachability de red
+- puerto RTSP abierto
+- respuesta parcial del endpoint
+- metadata disponible por `ffprobe`
 
 ---
 
@@ -19,19 +31,20 @@ El criterio central de éxito es:
 ### Incluye
 
 - lectura de inventario desde CSV
-- procesamiento batch por cámara
-- soporte para sitios de tipo:
-  - `PMI`
-  - `ARC`
-- salida detallada por cámara
-- salida resumen por sitio
-- concurrencia controlada
-- ventanas y timeouts configurables
-- detección básica de:
-  - black frames
-  - freeze frames
+- validación del contrato de entrada
+- normalización de datos por fila
+- soporte para sitios `PMI` y `ARC`
+- construcción de URL RTSP por cámara
+- `ffprobe` para metadata
+- `ffmpeg` para extracción de frames
+- `blackdetect`
+- `freezedetect`
+- clasificación de estado final
+- output detallado por cámara
+- output resumen por sitio
 - evidencia local por corrida
-- limpieza operativa de evidencia/output antes de una nueva corrida
+- concurrencia controlada
+- limpieza operativa opcional previa a una corrida
 
 ### No incluye
 
@@ -39,8 +52,9 @@ El criterio central de éxito es:
 - dashboard
 - histórico en base de datos
 - integración directa con VMS/BMS
-- auto-discovery de RTSP por marca
-- administración de credenciales dentro del repo
+- auto-discovery RTSP por marca
+- gestión de credenciales dentro del repo
+- monitoreo continuo tipo daemon
 
 ---
 
@@ -48,15 +62,14 @@ El criterio central de éxito es:
 
 ### Regla base
 
-- **1 fila de input = 1 cámara**
-- un sitio puede contener múltiples cámaras
-- un sitio puede ser:
-  - `PMI`
-  - `ARC`
+> **1 fila de input = 1 cámara**
 
-### Para `PMI`
+### Tipos de sitio soportados
 
-Roles esperados:
+- `PMI`
+- `ARC`
+
+### Roles esperados para `PMI`
 
 - `PTZ`
 - `FJ1`
@@ -64,9 +77,7 @@ Roles esperados:
 - `FJ3`
 - `LPR`
 
-### Para `ARC`
-
-Roles esperados:
+### Roles esperados para `ARC`
 
 - `FIXED_1`
 - `FIXED_2`
@@ -75,10 +86,10 @@ Roles esperados:
 - `LPR_3`
 - `LPR_4`
 
-Y pueden repetirse por dirección operativa:
+### Dirección operativa
 
-- `ENTRY`
-- `EXIT`
+- para `PMI`, `traffic_direction` debe ir vacío
+- para `ARC`, `traffic_direction` puede ser `ENTRY` o `EXIT`
 
 ---
 
@@ -86,7 +97,7 @@ Y pueden repetirse por dirección operativa:
 
 ### Entrada
 
-CSV de inventario de cámaras según `docs/csv-contract.md`.
+CSV de inventario conforme a `docs/csv-contract.md`.
 
 ### Salidas
 
@@ -95,59 +106,61 @@ CSV de inventario de cámaras según `docs/csv-contract.md`.
 
 El output detallado sirve para operación y debugging.
 
-El resumen sirve para lectura rápida y para futura integración con dashboard.
+El output resumen sirve para lectura rápida y para una futura capa de visualización.
 
 ---
 
-## Estados normalizados (`output.status`)
+## Estados normalizados
 
-| Estado | Significado |
-|---|---|
-| `OK` | Se lograron decodificar frames. |
-| `DOWN` | No hubo conectividad real / timeout total / servicio inaccesible. |
-| `NO_RTSP` | El endpoint es alcanzable o parcialmente respondiente, pero falla negociación RTSP, auth o path. |
-| `NO_FRAMES` | Hubo metadata o negociación útil, pero no se pudieron decodificar frames. |
-| `ERROR` | Fallo inesperado no clasificado. |
+- `OK`
+- `DOWN`
+- `NO_RTSP`
+- `NO_FRAMES`
+- `ERROR`
 
 ### Regla principal
 
-`status = OK` depende de `frames_ok = 1`.
+`status = OK` depende exclusivamente de `frames_ok = 1`.
+
+### Significado de estados
+
+#### `OK`
+
+Se lograron decodificar frames reales.
+
+#### `DOWN`
+
+No hubo conectividad útil o el servicio fue inaccesible.
+
+#### `NO_RTSP`
+
+El endpoint responde en algún nivel, pero falla la negociación RTSP, auth o path.
+
+#### `NO_FRAMES`
+
+Hubo metadata o negociación suficiente, pero no se lograron decodificar frames.
+
+#### `ERROR`
+
+Ocurrió un fallo inesperado no clasificado.
 
 ---
 
-## Pipeline por cámara (alto nivel)
+## Pipeline por cámara
 
-1. **Preparación de contexto**
-   - leer fila de inventario
-   - validar reglas mínimas
-   - normalizar datos
-   - preparar URL/parametrización RTSP
+Cada cámara debe seguir este flujo lógico:
 
-2. **(Opcional) validación de conectividad**
-   - reachability básica
-   - puerto RTSP
-   - timeouts tempranos
-
-3. **`ffprobe`**
-   - obtener metadata:
-     - codec
-     - width
-     - height
-     - fps
-
-4. **`ffmpeg` — extracción de frames**
-   - intentar decodificar una ventana corta de video
-   - determinar `frames_ok`
-
-5. **`ffmpeg` — detectores**
-   - `blackdetect`
-   - `freezedetect`
-
-6. **Consolidación**
-   - calcular `status`
-   - calcular `failure_stage`
-   - escribir output detallado
-   - agregar resultado al resumen por sitio
+1. leer fila del inventario
+2. validar reglas mínimas
+3. normalizar datos
+4. preparar URL y parámetros RTSP
+5. ejecutar `ffprobe`
+6. ejecutar `ffmpeg` para frames
+7. ejecutar `blackdetect` y `freezedetect`
+8. consolidar métricas
+9. mapear `status`
+10. escribir resultado detallado
+11. contribuir al resumen por sitio
 
 ---
 
@@ -155,21 +168,19 @@ El resumen sirve para lectura rápida y para futura integración con dashboard.
 
 ### Éxito real
 
-Una cámara se considera operativamente **OK** cuando:
+Una cámara está operativamente **OK** cuando:
 
-- se logra decodificar video
+- se logró decodificar video
 - `frames_ok = 1`
 
 ### Señales adicionales
 
-Una cámara puede quedar en `OK` y aun así tener:
+Una cámara puede quedar en `OK` y además traer:
 
 - `black_events > 0`
 - `freeze_events > 0`
 
-Eso significa que hay señal de video consumible, pero puede existir una alerta de calidad visual.
-
-En MVP-1 estas señales se reportan como métricas; no cambian automáticamente el estado central.
+En MVP-1 estas señales **no cambian automáticamente** el estado central. Se reportan como métricas diagnósticas.
 
 ---
 
@@ -183,9 +194,10 @@ Debe incluir al menos:
 - `is_ok`
 - `status`
 - `failure_stage`
-- metadata de `ffprobe`
+- metadata relevante de `ffprobe`
 - `frames_ok`
-- eventos de black/freeze
+- `black_events`
+- `freeze_events`
 - error resumido
 
 ---
@@ -204,144 +216,96 @@ Debe incluir por sitio:
 
 ---
 
-## Configuración del CLI
+## Configuración mínima del CLI
 
-Parámetros mínimos esperados:
+Parámetros esperados:
 
 - `batch_size`
-  - default: `15`
-  - procesa en bloques y permite escritura incremental
-
 - `max_workers`
-  - default: `3`
-  - máximo de cámaras procesadas en paralelo dentro de cada lote
-
 - timeouts
-  - configurables
-
 - ventanas de análisis
-  - configurables
+- política de limpieza previa
 
-- modo de limpieza previa
-  - configurable
-  - en laboratorio, se espera limpiar evidencia/output antes de cada corrida
+### Defaults operativos cerrados para MVP-1
 
----
+- `batch_size = 15`
+- `max_workers = 3`
 
-## Performance y red
+Interpretación:
 
-Este proceso abre streams RTSP, decodifica video y genera tráfico.
-
-Por eso el MVP debe ejecutar con throttling controlado.
-
-Recomendaciones iniciales:
-
-- usar `batch_size = 15`
-- usar `max_workers = 3`
-- usar ventanas cortas de análisis
-- evitar saturar red, cámaras o enlaces
-- escribir resultados de forma incremental por lote
+- el inventario se divide en lotes de 15
+- dentro de cada lote solo 3 cámaras se procesan en paralelo
 
 ---
 
-## Evidencia
+## Evidencia y output real
 
-La evidencia puede incluir:
+### Evidencia local por corrida
 
-- logs locales
-- frames temporales
-- resultados intermedios
-
-Layout esperado:
-
-```text
-.local/evidence/<run_id>/<camera_name>/
-```
-
-Artefactos típicos:
+Puede incluir:
 
 - `probe.txt`
 - `detect.txt`
-- `frames/*.jpg`
+- frames JPG
+- logs intermedios redactados
 
-Reglas:
-
-- es **local y temporal**
-- no se versiona en GitHub
-- no debe contener secretos en texto claro
-- cualquier log debe redactar credenciales
-
----
-
-## Output real
-
-Los resultados reales deben vivir en:
+### Layout esperado
 
 ```text
-.local/output/<run_id>/
+.local/
+├─ vms_input_real_local.csv
+├─ evidence/
+│  └─ <run_id>/
+│     └─ <camera_name>/
+│        ├─ probe.txt
+│        ├─ detect.txt
+│        └─ frames/
+└─ output/
+   └─ <run_id>/
+      ├─ vms_output_real_detailed.csv
+      └─ vms_output_real_summary_by_site.csv
 ```
-
-Archivos esperados:
-
-- `vms_output_real_detailed.csv`
-- `vms_output_real_summary_by_site.csv`
 
 ---
 
 ## Limpieza operativa
 
-Antes de iniciar una nueva corrida, el runtime debe poder:
+Antes de iniciar una corrida nueva, el runtime debe poder:
 
 - conservar `.local/vms_input_real_local.csv`
 - limpiar `.local/evidence/`
 - limpiar `.local/output/`
-- recrear carpetas de la nueva corrida
+- recrear estructura limpia
 
 Objetivo:
 
 - evitar crecimiento innecesario de disco
-- evitar mezclar evidencia vieja con una corrida nueva
-
----
-
-## Seguridad operativa
-
-- `examples/` solo contiene dummy
-- archivos reales viven localmente en `.local/`
-- no se suben IPs reales
-- no se suben credenciales
-- no se suben outputs reales
-- no se sube evidencia
+- evitar mezclar evidencia vieja con evidencia nueva
 
 ---
 
 ## Criterios de aceptación del MVP-1
 
-Se considera aceptable cuando:
+Se considera aceptable cuando el sistema:
 
 1. lee un CSV válido de inventario
-2. procesa filas como cámaras individuales
-3. genera output detallado por cámara
-4. genera output resumen por sitio
-5. clasifica correctamente:
-   - `OK`
-   - `DOWN`
-   - `NO_RTSP`
-   - `NO_FRAMES`
-   - `ERROR`
+2. procesa cada fila como una cámara individual
+3. clasifica correctamente `OK`, `DOWN`, `NO_RTSP`, `NO_FRAMES` y `ERROR`
+4. genera output detallado por cámara
+5. genera output resumen por sitio
 6. usa concurrencia controlada
 7. genera evidencia local por corrida
-8. limpia evidencia/output si así se configura
+8. respeta la política de limpieza configurada
 9. no requiere UI
 10. no escribe secretos ni evidencia al repo
 
 ---
 
-## Limitaciones conocidas del MVP-1
+## Limitaciones conocidas
 
 - depende de que el inventario tenga datos RTSP válidos
-- no resuelve automáticamente RTSP por marca
+- no resuelve RTSP automáticamente por marca
 - no implementa dashboard
 - no guarda histórico
 - no integra base de datos
-- no reemplaza monitoreo de red ni inventario completo de infraestructura
+- no reemplaza monitoreo de red

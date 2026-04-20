@@ -1,26 +1,40 @@
 # Roadmap de MVPs — VMS HealthCheck
 
-## MVP-1 — CLI batch funcional
+## Principio del roadmap
+
+El orden correcto del proyecto es:
+
+1. contrato
+2. documentación
+3. motor CLI confiable
+4. ejecución operativa controlada
+5. visualización
+6. histórico
+
+---
+
+## MVP-1 — Backend CLI
 
 ### Objetivo
 
-Construir un CLI en Python que valide visualización real de cámaras vía RTSP y genere reportes CSV.
+Construir un CLI batch en Python que valide visualización real de cámaras vía RTSP y genere reportes CSV operativos.
 
 ### Incluye
 
 - lectura de inventario desde CSV
-- validación por fila/cámara
+- validación por fila y por cámara
 - soporte para `PMI` y `ARC`
 - `ffprobe` para metadata
 - `ffmpeg` para extracción de frames
-- detectores `blackdetect` / `freezedetect`
+- `blackdetect`
+- `freezedetect`
 - output detallado por cámara
 - output resumen por sitio
 - evidencia local por corrida
+- limpieza operativa local
 - throttling operativo:
   - `batch_size = 15`
   - `max_workers = 3`
-- limpieza local de `evidence/` y `output/` antes de una corrida nueva
 
 ### No incluye
 
@@ -32,7 +46,7 @@ Construir un CLI en Python que valide visualización real de cámaras vía RTSP 
 
 ---
 
-## MVP-2 — Ejecución asistida / viewer básico
+## MVP-2 — Viewer básico / ejecución asistida
 
 ### Objetivo
 
@@ -40,17 +54,17 @@ Agregar una capa mínima de uso más cómoda sin cambiar el motor del CLI.
 
 ### Posibles entregables
 
-- frontend básico o viewer local
+- interfaz básica o viewer local
 - carga de CSV desde interfaz
-- botón o acción para ejecutar el proceso
+- acción para ejecutar el proceso
 - tabla simple de resultados
-- filtros básicos por sitio / estado
+- filtros básicos por sitio y estado
 
 ### No incluye todavía
 
 - analítica histórica completa
-- correlaciones complejas
 - reporting avanzado
+- correlaciones complejas
 
 ---
 
@@ -58,7 +72,7 @@ Agregar una capa mínima de uso más cómoda sin cambiar el motor del CLI.
 
 ### Objetivo
 
-Convertir los resultados operativos en una capa de observabilidad y reporting.
+Convertir el resultado operativo en una capa de observabilidad y reporting.
 
 ### Posibles entregables
 
@@ -68,17 +82,4 @@ Convertir los resultados operativos en una capa de observabilidad y reporting.
 - comparativos por corrida
 - dashboard
 - visualización de degradación recurrente
-- exportación adicional de reportes
-
----
-
-## Principio del roadmap
-
-El orden correcto del proyecto es:
-
-1. contrato
-2. documentación
-3. motor CLI confiable
-4. ejecución operativa controlada
-5. visualización
-6. histórico
+- exportes adicionales
