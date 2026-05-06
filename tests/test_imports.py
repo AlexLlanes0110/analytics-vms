@@ -1,7 +1,17 @@
 """Import checks for the Analytics VMS package."""
 
 import analytics_vms
-from analytics_vms import classify, config, detection, frames, inventory, probes, reports, rtsp
+from analytics_vms import (
+    classify,
+    config,
+    detection,
+    frames,
+    inventory,
+    probes,
+    reports,
+    rtsp,
+    visual_diagnostics,
+)
 
 
 def test_package_version() -> None:
@@ -15,6 +25,7 @@ def test_modules_import() -> None:
     }
     assert probes.run_probe_stub().ok is False
     assert frames.FrameValidationResult().frames_ok == 0
+    assert visual_diagnostics.VisualDiagnosticResult(detector="blackdetect").detected == 0
     assert detection.run_detection_stub().black_events == 0
     assert reports.build_detailed_rows([{"status": "NO_FRAMES"}]) == [
         {"status": "NO_FRAMES"}

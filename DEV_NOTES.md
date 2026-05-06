@@ -16,13 +16,13 @@ ffprobe metadata is not enough to declare a camera OK.
 ## Current state
 
 Current branch:
-mvp-1e-ffmpeg-frame-validation
+mvp-1f-visual-diagnostics-detectors
 
 Repo status:
-MVP-1E committed and pushed; video-stream hardening pending review as a second fix commit.
+MVP-1E closed and merged to main. MVP-1F visual diagnostics detectors in progress.
 
 Next task:
-Suggested next task: MVP-1F - visual diagnostics detectors, pending confirmation.
+MVP-1F - visual diagnostics detectors.
 
 ## Closed MVPs
 
@@ -92,30 +92,36 @@ Done:
 
 Known commit:
 - de2bac4 feat: add ffmpeg frame validation
-- Pending fix commit: harden ffmpeg video stream validation after review.
+- 94ab480 fix: require video stream for frame validation
+- 5c13c10 merge: complete mvp-1e ffmpeg frame validation
 
 ## Next task
 
-### Suggested MVP-1F - visual diagnostics detectors
+### MVP-1F - visual diagnostics detectors
 
 Goal:
-Implement optional black/freeze diagnostic wrappers after frame validation is closed.
+Implement optional isolated black/freeze diagnostic wrappers with ffmpeg filters.
 
 Expected files:
-- To be defined.
+- src/analytics_vms/visual_diagnostics.py
+- tests/test_visual_diagnostics.py
 
 Allowed scope:
-- To be defined after explicit task request.
+- Add VisualDiagnosticEvent and VisualDiagnosticResult dataclasses.
+- Add detect_black_frames() wrapper for ffmpeg blackdetect.
+- Add detect_frozen_frames() wrapper for ffmpeg freezedetect.
+- Parse detector events from sanitized ffmpeg stderr.
+- Unit tests must mock subprocess.run and must not require ffmpeg installed.
 
 Forbidden scope:
-- Do not implement blackdetect.
-- Do not implement freezedetect.
 - Do not implement final camera classification.
 - Do not implement CSV reports.
 - Do not implement batch execution.
+- Do not implement new CLI commands.
+- Do not integrate with inventory.
 - Do not use real RTSP endpoints.
 - Do not use real credentials.
-- Do not require ffprobe installed for unit tests.
+- Do not require ffmpeg installed for unit tests.
 
 ## Technical decisions
 
@@ -175,40 +181,42 @@ analytics-vms check-inventory examples/vms_input_dummy_repo.csv
 ## Last session summary
 
 Last completed task:
-MVP-1E - ffmpeg frame validation
+MVP-1E - ffmpeg frame validation, merged to main
 
 Next task:
-Suggested MVP-1F - visual diagnostics detectors, pending confirmation.
+MVP-1F - visual diagnostics detectors in progress.
 
 Known risks:
 - Do not treat ffprobe success as camera OK.
 - Do not leak RTSP credentials in errors.
 - Do not execute real ffprobe or ffmpeg during unit tests.
-- Keep the next MVP isolated from classification and reports.
+- Keep MVP-1F isolated from classification, inventory integration, batch execution, CLI, and reports.
 
 ## Handoff for next Codex session
 
 Current branch:
-mvp-1e-ffmpeg-frame-validation
+mvp-1f-visual-diagnostics-detectors
 
 Current working tree status expected:
 - M DEV_NOTES.md
-- M src/analytics_vms/frames.py
-- M tests/test_frames.py
+- M tests/test_imports.py
+- ?? src/analytics_vms/visual_diagnostics.py
+- ?? tests/test_visual_diagnostics.py
 
 MVP currently in progress:
-MVP-1E - ffmpeg frame validation hardening
+MVP-1F - visual diagnostics detectors
 
 Implementation status:
-MVP-1E base implementation is committed and pushed as de2bac4. This hardening must be closed as a second fix commit on branch mvp-1e-ffmpeg-frame-validation; do not amend or rewrite history. There is no new CLI. There is no blackdetect/freezedetect, final camera classification, batch execution, or CSV reporting.
+MVP-1E is closed and merged to main at 5c13c10. MVP-1F adds isolated optional visual diagnostic wrappers only. There is no new CLI, no inventory integration, no batch execution, no CSV reporting, and no final camera classification.
 
 Files changed:
 - DEV_NOTES.md
-- src/analytics_vms/frames.py
-- tests/test_frames.py
+- src/analytics_vms/visual_diagnostics.py
+- tests/test_visual_diagnostics.py
+- tests/test_imports.py
 
 Validations already run:
-- pytest -q: 46 passed
+- pytest -q: 57 passed
 - analytics-vms --help: OK
 - analytics-vms check-inventory examples/vms_input_dummy_repo.csv: OK, 181 rows
 
@@ -221,30 +229,28 @@ Commands that the next session should run first:
 - analytics-vms check-inventory examples/vms_input_dummy_repo.csv
 
 What to review before commit:
-- Confirm src/analytics_vms/frames.py only implements the isolated ffmpeg frame validation wrapper.
-- Confirm validate_rtsp_frames() uses `-map 0:v:0` and `-an` after `-i <rtsp_url>`.
-- Confirm tests/test_frames.py uses mocks and does not require ffmpeg, real cameras, real RTSP endpoints, or real credentials.
-- Confirm tests/test_frames.py verifies the video stream mapping, argument order, `min_frames`, list args, and absence of `shell`.
-- Confirm DEV_NOTES.md accurately describes one-branch-per-MVP methodology and the current hardening handoff.
+- Confirm src/analytics_vms/visual_diagnostics.py only implements isolated blackdetect/freezedetect wrappers.
+- Confirm ffmpeg commands use argument lists, `-map 0:v:0`, `-an`, `-t`, `-vf`, and never `shell=True`.
+- Confirm tests/test_visual_diagnostics.py uses mocks and does not require ffmpeg, real cameras, real RTSP endpoints, or real credentials.
+- Confirm DEV_NOTES.md accurately describes one-branch-per-MVP methodology and the current MVP-1F handoff.
 - Confirm no .local/, .venv/, real outputs, real IPs, real users, or real passwords were touched.
 
 Exact commit command suggested:
-git add DEV_NOTES.md src/analytics_vms/frames.py tests/test_frames.py
-git commit -m "fix: require video stream for frame validation"
+git add DEV_NOTES.md src/analytics_vms/visual_diagnostics.py tests/test_visual_diagnostics.py tests/test_imports.py
+git commit -m "feat: add visual diagnostic detectors"
 
 Exact merge-to-main flow after review:
-git push origin mvp-1e-ffmpeg-frame-validation
+git push origin mvp-1f-visual-diagnostics-detectors
 git checkout main
 git pull origin main
-git merge --no-ff mvp-1e-ffmpeg-frame-validation -m "merge: complete mvp-1e ffmpeg frame validation"
+git merge --no-ff mvp-1f-visual-diagnostics-detectors -m "merge: complete mvp-1f visual diagnostics detectors"
 pytest -q
 analytics-vms --help
 analytics-vms check-inventory examples/vms_input_dummy_repo.csv
 git push origin main
 
 Next MVP suggested:
-MVP-1F - visual diagnostics detectors. Create the branch from updated main after MVP-1E is merged and main is pushed:
-git checkout -b mvp-1f-visual-diagnostics
+To be defined after MVP-1F is reviewed and merged to main.
 
 ## Update log
 
@@ -390,3 +396,45 @@ Test result:
 - pytest -q: 46 passed
 - analytics-vms --help: OK
 - analytics-vms check-inventory examples/vms_input_dummy_repo.csv: OK, 181 rows
+
+### 2026-05-06
+
+MVP-1E merged to main.
+
+Known commit:
+- 5c13c10 merge: complete mvp-1e ffmpeg frame validation
+
+MVP-1F started on branch mvp-1f-visual-diagnostics-detectors.
+
+Goal:
+- Add isolated optional visual diagnostics wrappers for blackdetect and freezedetect.
+- Keep `OK = frames_ok == 1`; visual diagnostics do not classify cameras as OK.
+- Do not add CLI, batch execution, reports, inventory integration, or final classification.
+
+Files planned/modified:
+- src/analytics_vms/visual_diagnostics.py
+- tests/test_visual_diagnostics.py
+- tests/test_imports.py
+- DEV_NOTES.md
+
+Implementation:
+- Added VisualDiagnosticEvent and VisualDiagnosticResult.
+- Added detect_black_frames() using ffmpeg blackdetect.
+- Added detect_frozen_frames() using ffmpeg freezedetect.
+- Both wrappers require explicit video mapping with `-map 0:v:0`, ignore audio with `-an`, bound runtime with `-t`, and keep subprocess arguments as lists without `shell=True`.
+- Output/error sanitization masks RTSP URLs and encoded/decoded password tokens.
+- Invalid sample/duration parameters return structured errors without running subprocess.
+
+Tests added:
+- blackdetect and freezedetect command construction.
+- video mapping order after `-i <rtsp_url>`.
+- `-t <sample_seconds>` preservation.
+- subprocess.run list args, capture_output=True, text=True, timeout, check=False, and no `shell`.
+- black_start/black_end/black_duration parsing.
+- freeze_start/freeze_end/freeze_duration parsing.
+- no-event, nonzero returncode, timeout, FileNotFoundError, credential sanitization, and invalid-parameter cases.
+
+Validation status:
+- pytest -q: 57 passed.
+- analytics-vms --help: OK.
+- analytics-vms check-inventory examples/vms_input_dummy_repo.csv: OK, 181 rows.
