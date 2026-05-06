@@ -35,6 +35,32 @@ Do not touch without explicit review:
 - Update `DEV_NOTES.md` at the end of each task.
 - Run validations before closing a task.
 
+## MVP Branch Methodology
+
+Each MVP must be developed on its own branch.
+
+Required workflow:
+
+1. Start from clean, updated `main`.
+2. Create a branch specific to the MVP.
+3. Implement only that MVP's scope.
+4. Run validations.
+5. Update `DEV_NOTES.md`.
+6. Commit on the MVP branch when explicitly requested.
+7. Push the MVP branch when explicitly requested.
+8. Merge the MVP branch into `main`.
+9. Push `main`.
+10. Create the next branch from updated `main`.
+
+Rules:
+
+- Do not mix the next MVP into the previous MVP branch.
+- Do not create a new branch from an unclosed MVP branch unless explicitly instructed.
+- Do not implement future scope in the current MVP.
+- Keep the MVP history in `DEV_NOTES.md`.
+- Move each completed MVP to `Closed MVPs`.
+- Keep the next MVP in `Next task`.
+
 ## Core Functional Rule
 
 `OK = frames_ok == 1`
