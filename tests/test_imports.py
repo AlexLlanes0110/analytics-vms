@@ -13,7 +13,7 @@ def test_modules_import() -> None:
     assert inventory.normalize_inventory_row({"camera_name": "dummy"}) == {
         "camera_name": "dummy"
     }
-    assert probes.run_probe_stub().frames_ok == 0
+    assert probes.run_probe_stub().ok is False
     assert detection.run_detection_stub().black_events == 0
     assert reports.build_detailed_rows([{"status": "NO_FRAMES"}]) == [
         {"status": "NO_FRAMES"}
