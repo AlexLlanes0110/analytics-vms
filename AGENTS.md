@@ -32,6 +32,7 @@ Do not touch without explicit review:
 
 - Do not use `shell=True` in `subprocess`.
 - Do not commit unless explicitly requested.
+- Do not push unless explicitly requested.
 - Update `DEV_NOTES.md` at the end of each task.
 - Run validations before closing a task.
 
