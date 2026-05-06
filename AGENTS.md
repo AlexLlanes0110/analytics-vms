@@ -34,7 +34,9 @@ Do not touch without explicit review:
 - Do not commit unless explicitly requested.
 - Do not push unless explicitly requested.
 - Update `DEV_NOTES.md` at the end of each task.
+- Treat `DEV_NOTES.md` as the live handoff for current MVP state.
 - Run validations before closing a task.
+- Unit tests must not use real RTSP endpoints, ffprobe, or ffmpeg.
 
 ## MVP Branch Methodology
 
@@ -68,4 +70,5 @@ Rules:
 
 - `ffprobe` does not declare a camera OK.
 - `ffprobe` only provides metadata and diagnostic signals.
-- Final OK depends on `ffmpeg` decoding real frames in a later phase.
+- Final OK depends on `ffmpeg` decoding real frames.
+- Visual diagnostics do not change final OK status.
