@@ -1,0 +1,35 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "analytics-vms"
+version = "0.1.0"
+description = "CLI batch para diagnostico tecnico de camaras VMS."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "typer>=0.12,<1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8,<9",
+]
+
+[project.scripts]
+analytics-vms = "analytics_vms.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/analytics_vms"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/analytics_vms",
+    "tests",
+    "README.md",
+    "pyproject.toml",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
