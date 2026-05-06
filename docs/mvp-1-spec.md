@@ -113,9 +113,8 @@ El output resumen sirve para lectura rápida y para una futura capa de visualiza
 ## Estados normalizados
 
 - `OK`
-- `DOWN`
-- `NO_RTSP`
 - `NO_FRAMES`
+- `PROBE_FAILED`
 - `ERROR`
 
 ### Regla principal
@@ -128,21 +127,17 @@ El output resumen sirve para lectura rápida y para una futura capa de visualiza
 
 Se lograron decodificar frames reales.
 
-#### `DOWN`
+#### `PROBE_FAILED`
 
-No hubo conectividad útil o el servicio fue inaccesible.
-
-#### `NO_RTSP`
-
-El endpoint responde en algún nivel, pero falla la negociación RTSP, auth o path.
+`ffprobe` no obtuvo metadata útil. Esto incluye cámaras o endpoints RTSP que no responden a la prueba de metadata.
 
 #### `NO_FRAMES`
 
-Hubo metadata o negociación suficiente, pero no se lograron decodificar frames.
+`ffprobe` respondió, pero `ffmpeg` no logró decodificar frames reales.
 
 #### `ERROR`
 
-Ocurrió un fallo inesperado no clasificado.
+Ocurrió un fallo inesperado del software, construcción o excepción.
 
 ---
 
@@ -290,7 +285,7 @@ Se considera aceptable cuando el sistema:
 
 1. lee un CSV válido de inventario
 2. procesa cada fila como una cámara individual
-3. clasifica correctamente `OK`, `DOWN`, `NO_RTSP`, `NO_FRAMES` y `ERROR`
+3. clasifica correctamente `OK`, `NO_FRAMES`, `PROBE_FAILED` y `ERROR`
 4. genera output detallado por cámara
 5. genera output resumen por sitio
 6. usa concurrencia controlada

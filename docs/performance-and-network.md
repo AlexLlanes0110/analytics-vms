@@ -136,7 +136,7 @@ Solo debe aumentarse después de medir:
 
 - CPU sostenida innecesariamente alta
 - timeouts masivos
-- más `NO_RTSP` o `NO_FRAMES` de lo esperado
+- más `PROBE_FAILED` o `NO_FRAMES` de lo esperado
 - caída fuerte del rendimiento global
 - host local inestable
 - crecimiento excesivo de evidencia en disco
