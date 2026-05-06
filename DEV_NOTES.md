@@ -16,13 +16,13 @@ ffprobe metadata is not enough to declare a camera OK.
 ## Current state
 
 Current branch:
-mvp-1f-visual-diagnostics-detectors
+mvp-1g-single-camera-check
 
 Repo status:
-MVP-1E closed and merged to main. MVP-1F visual diagnostics detectors in progress.
+MVP-1F closed and merged to main. MVP-1G single-camera in-memory check in progress.
 
 Next task:
-MVP-1F - visual diagnostics detectors.
+MVP-1G - single-camera in-memory check.
 
 ## Closed MVPs
 
@@ -95,33 +95,56 @@ Known commit:
 - 94ab480 fix: require video stream for frame validation
 - 5c13c10 merge: complete mvp-1e ffmpeg frame validation
 
-## Next task
-
 ### MVP-1F - visual diagnostics detectors
 
+Done:
+- VisualDiagnosticEvent structured event.
+- VisualDiagnosticResult structured detector result.
+- detect_black_frames() wrapper for ffmpeg blackdetect.
+- detect_frozen_frames() wrapper for ffmpeg freezedetect.
+- Explicit ffmpeg video stream selection with `-map 0:v:0`.
+- Audio ignored with `-an`.
+- Bounded samples with `-t`.
+- Event parsing from sanitized ffmpeg stderr.
+- Safe handling for nonzero return code, missing ffmpeg, timeout, and invalid detector parameters.
+- Credential masking in error/raw_stdout/raw_stderr.
+- Unit tests with mocked subprocess.run; ffmpeg is not required for tests.
+
+Known commit:
+- 1516478 feat: add visual diagnostic detectors
+- 74afdca merge: complete mvp-1f visual diagnostics detectors
+
+## Next task
+
+### MVP-1G - single-camera in-memory check
+
 Goal:
-Implement optional isolated black/freeze diagnostic wrappers with ffmpeg filters.
+Implement a high-level in-memory wrapper to check one camera row using existing RTSP, ffprobe, frame validation, and optional visual diagnostic wrappers.
 
 Expected files:
-- src/analytics_vms/visual_diagnostics.py
-- tests/test_visual_diagnostics.py
+- src/analytics_vms/camera_check.py
+- tests/test_camera_check.py
 
 Allowed scope:
-- Add VisualDiagnosticEvent and VisualDiagnosticResult dataclasses.
-- Add detect_black_frames() wrapper for ffmpeg blackdetect.
-- Add detect_frozen_frames() wrapper for ffmpeg freezedetect.
-- Parse detector events from sanitized ffmpeg stderr.
-- Unit tests must mock subprocess.run and must not require ffmpeg installed.
+- Add CameraCheckResult dataclass.
+- Add check_single_camera().
+- Build RTSP URLs with the existing RTSP builder.
+- Run the existing ffprobe wrapper.
+- Run the existing frame validation wrapper.
+- Run blackdetect/freezedetect only when `frames_ok == 1` and visual diagnostics are enabled.
+- Return a structured in-memory result.
+- Unit tests must mock wrappers and must not require network, ffprobe, or ffmpeg.
 
 Forbidden scope:
 - Do not implement final camera classification.
 - Do not implement CSV reports.
+- Do not implement JSON reports.
 - Do not implement batch execution.
 - Do not implement new CLI commands.
-- Do not integrate with inventory.
+- Do not write files.
 - Do not use real RTSP endpoints.
 - Do not use real credentials.
-- Do not require ffmpeg installed for unit tests.
+- Do not require ffprobe or ffmpeg installed for unit tests.
 
 ## Technical decisions
 
@@ -181,44 +204,46 @@ analytics-vms check-inventory examples/vms_input_dummy_repo.csv
 ## Last session summary
 
 Last completed task:
-MVP-1E - ffmpeg frame validation, merged to main
+MVP-1F - visual diagnostics detectors, merged to main
 
 Next task:
-MVP-1F - visual diagnostics detectors in progress.
+MVP-1G - single-camera in-memory check in progress.
 
 Known risks:
 - Do not treat ffprobe success as camera OK.
 - Do not leak RTSP credentials in errors.
 - Do not execute real ffprobe or ffmpeg during unit tests.
-- Keep MVP-1F isolated from classification, inventory integration, batch execution, CLI, and reports.
+- Keep MVP-1G isolated from CLI, batch execution, report generation, file writes, and final classification.
+- Visual diagnostics must not change final status; `OK` still depends on `frames_ok == 1`.
 
 ## Handoff for next Codex session
 
 Current branch:
-mvp-1f-visual-diagnostics-detectors
+mvp-1g-single-camera-check
 
 Current working tree status expected:
 - M DEV_NOTES.md
 - M tests/test_imports.py
-- ?? src/analytics_vms/visual_diagnostics.py
-- ?? tests/test_visual_diagnostics.py
+- ?? src/analytics_vms/camera_check.py
+- ?? tests/test_camera_check.py
 
 MVP currently in progress:
-MVP-1F - visual diagnostics detectors
+MVP-1G - single-camera in-memory check
 
 Implementation status:
-MVP-1E is closed and merged to main at 5c13c10. MVP-1F adds isolated optional visual diagnostic wrappers only. There is no new CLI, no inventory integration, no batch execution, no CSV reporting, and no final camera classification.
+MVP-1F is closed and merged to main at 74afdca. MVP-1G adds a single-camera in-memory orchestration wrapper only. There is no new CLI, no batch execution, no CSV/JSON reporting, no file writing, and no final classification beyond the simple MVP-1G status.
 
 Files changed:
 - DEV_NOTES.md
-- src/analytics_vms/visual_diagnostics.py
-- tests/test_visual_diagnostics.py
+- src/analytics_vms/camera_check.py
+- tests/test_camera_check.py
 - tests/test_imports.py
 
 Validations already run:
-- pytest -q: 57 passed
+- pytest -q: 66 passed
 - analytics-vms --help: OK
 - analytics-vms check-inventory examples/vms_input_dummy_repo.csv: OK, 181 rows
+- git diff --check: OK
 
 Commands that the next session should run first:
 - git status --short --untracked-files=all
@@ -229,21 +254,23 @@ Commands that the next session should run first:
 - analytics-vms check-inventory examples/vms_input_dummy_repo.csv
 
 What to review before commit:
-- Confirm src/analytics_vms/visual_diagnostics.py only implements isolated blackdetect/freezedetect wrappers.
-- Confirm ffmpeg commands use argument lists, `-map 0:v:0`, `-an`, `-t`, `-vf`, and never `shell=True`.
-- Confirm tests/test_visual_diagnostics.py uses mocks and does not require ffmpeg, real cameras, real RTSP endpoints, or real credentials.
-- Confirm DEV_NOTES.md accurately describes one-branch-per-MVP methodology and the current MVP-1F handoff.
+- Confirm src/analytics_vms/camera_check.py only implements single-camera in-memory orchestration.
+- Confirm check_single_camera() uses existing RTSP, ffprobe, frame validation, and visual diagnostic wrappers.
+- Confirm visual diagnostics run only when `frames_ok == 1` and are enabled.
+- Confirm visual diagnostics do not change the final status.
+- Confirm tests/test_camera_check.py uses mocks and does not require network, ffprobe, ffmpeg, real RTSP endpoints, or real credentials.
+- Confirm DEV_NOTES.md accurately describes one-branch-per-MVP methodology and the current MVP-1G handoff.
 - Confirm no .local/, .venv/, real outputs, real IPs, real users, or real passwords were touched.
 
 Exact commit command suggested:
-git add DEV_NOTES.md src/analytics_vms/visual_diagnostics.py tests/test_visual_diagnostics.py tests/test_imports.py
-git commit -m "feat: add visual diagnostic detectors"
+git add DEV_NOTES.md src/analytics_vms/camera_check.py tests/test_camera_check.py tests/test_imports.py
+git commit -m "feat: add single-camera check wrapper"
 
 Exact merge-to-main flow after review:
-git push origin mvp-1f-visual-diagnostics-detectors
+git push origin mvp-1g-single-camera-check
 git checkout main
 git pull origin main
-git merge --no-ff mvp-1f-visual-diagnostics-detectors -m "merge: complete mvp-1f visual diagnostics detectors"
+git merge --no-ff mvp-1g-single-camera-check -m "merge: complete mvp-1g single-camera check"
 pytest -q
 analytics-vms --help
 analytics-vms check-inventory examples/vms_input_dummy_repo.csv
@@ -438,3 +465,51 @@ Validation status:
 - pytest -q: 57 passed.
 - analytics-vms --help: OK.
 - analytics-vms check-inventory examples/vms_input_dummy_repo.csv: OK, 181 rows.
+
+### 2026-05-06
+
+MVP-1F merged to main.
+
+Known commit:
+- 74afdca merge: complete mvp-1f visual diagnostics detectors
+
+MVP-1G started on branch mvp-1g-single-camera-check.
+
+Goal:
+- Add a high-level in-memory wrapper for one camera row.
+- Keep `OK = frames_ok == 1`.
+- Visual diagnostics add black/freeze signals only and must not change final status.
+- Do not add CLI, batch execution, reports, file writes, inventory CSV execution, or final classification.
+
+Files planned/modified:
+- src/analytics_vms/camera_check.py
+- tests/test_camera_check.py
+- tests/test_imports.py
+- DEV_NOTES.md
+
+Implementation:
+- Added CameraCheckResult.
+- Added check_single_camera().
+- Builds RTSP using the existing RTSP builder and stores only a masked RTSP URL in the result.
+- Runs the existing ffprobe wrapper and frame validation wrapper.
+- Runs blackdetect/freezedetect only when `frames_ok == 1` and visual diagnostics are enabled.
+- Returns simple in-memory status: OK, NO_FRAMES, PROBE_FAILED, or ERROR.
+- Keeps visual diagnostics from changing final status.
+- Sanitizes top-level errors so row passwords are not exposed.
+
+Tests added:
+- OK camera with probe_ok=1 and frames_ok=1.
+- Visual diagnostics run when frames_ok=1 and enabled.
+- Visual diagnostics are skipped when frames_ok=0.
+- Probe failure skips frames and visual diagnostics.
+- Visual diagnostics disabled skips black/freezedetect.
+- RTSP build errors return ERROR.
+- Masked RTSP URL does not contain password.
+- OK status depends on frames_ok, not black/freeze detections.
+- Visual diagnostic failures do not change OK status.
+
+Validation status:
+- pytest -q: 66 passed.
+- analytics-vms --help: OK.
+- analytics-vms check-inventory examples/vms_input_dummy_repo.csv: OK, 181 rows.
+- git diff --check: OK.
