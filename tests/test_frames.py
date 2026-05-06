@@ -30,6 +30,9 @@ def _mock_subprocess_run(
             "tcp",
             "-i",
             RTSP_URL,
+            "-map",
+            "0:v:0",
+            "-an",
             "-frames:v",
             str(expected_min_frames),
             "-f",
@@ -66,6 +69,32 @@ def test_validate_rtsp_frames_success(monkeypatch: Any) -> None:
         raw_stderr="",
         decoded_frames=1,
     )
+
+
+def test_validate_rtsp_frames_requires_explicit_video_stream(monkeypatch: Any) -> None:
+    captured_args: list[str] = []
+
+    def fake_run(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        nonlocal captured_args
+        captured_args = args
+        assert isinstance(args, list)
+        assert "shell" not in kwargs
+        return subprocess.CompletedProcess(args=args, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr("analytics_vms.frames.subprocess.run", fake_run)
+
+    result = validate_rtsp_frames(RTSP_URL, timeout_seconds=2, min_frames=2)
+
+    assert result.frames_ok == 1
+    input_index = captured_args.index("-i")
+    map_index = captured_args.index("-map")
+    frames_index = captured_args.index("-frames:v")
+    assert captured_args[input_index + 1] == RTSP_URL
+    assert map_index == input_index + 2
+    assert captured_args[map_index + 1] == "0:v:0"
+    assert captured_args[map_index + 2] == "-an"
+    assert frames_index > map_index
+    assert captured_args[frames_index + 1] == "2"
 
 
 def test_validate_rtsp_frames_nonzero_returncode(monkeypatch: Any) -> None:

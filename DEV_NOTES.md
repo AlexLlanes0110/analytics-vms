@@ -19,7 +19,7 @@ Current branch:
 mvp-1e-ffmpeg-frame-validation
 
 Repo status:
-MVP-1E implemented in working tree; pending review/commit.
+MVP-1E committed and pushed; video-stream hardening pending review as a second fix commit.
 
 Next task:
 Suggested next task: MVP-1F - visual diagnostics detectors, pending confirmation.
@@ -84,12 +84,15 @@ Done:
 - validate_rtsp_frames()
 - Timeout handling.
 - frames_ok signal based on ffmpeg decoding min_frames frames.
+- Explicit ffmpeg video stream selection with `-map 0:v:0`.
+- Audio ignored with `-an` so audio-only inputs cannot pass frame validation.
 - Safe handling for nonzero return code, missing ffmpeg, timeout, and invalid min_frames.
 - Credential masking in error/raw_stdout/raw_stderr.
 - Unit tests with mocked subprocess.run; ffmpeg is not required for tests.
 
 Known commit:
-- Pending review/commit.
+- de2bac4 feat: add ffmpeg frame validation
+- Pending fix commit: harden ffmpeg video stream validation after review.
 
 ## Next task
 
@@ -189,27 +192,23 @@ Current branch:
 mvp-1e-ffmpeg-frame-validation
 
 Current working tree status expected:
-- M AGENTS.md
 - M DEV_NOTES.md
-- M tests/test_imports.py
-- ?? src/analytics_vms/frames.py
-- ?? tests/test_frames.py
+- M src/analytics_vms/frames.py
+- M tests/test_frames.py
 
 MVP currently in progress:
-MVP-1E - ffmpeg frame validation
+MVP-1E - ffmpeg frame validation hardening
 
 Implementation status:
-MVP-1E is implemented locally but has not been committed or pushed. There is no new CLI. There is no blackdetect/freezedetect, final camera classification, batch execution, or CSV reporting.
+MVP-1E base implementation is committed and pushed as de2bac4. This hardening must be closed as a second fix commit on branch mvp-1e-ffmpeg-frame-validation; do not amend or rewrite history. There is no new CLI. There is no blackdetect/freezedetect, final camera classification, batch execution, or CSV reporting.
 
 Files changed:
-- AGENTS.md
 - DEV_NOTES.md
 - src/analytics_vms/frames.py
 - tests/test_frames.py
-- tests/test_imports.py
 
 Validations already run:
-- pytest -q: 45 passed
+- pytest -q: 46 passed
 - analytics-vms --help: OK
 - analytics-vms check-inventory examples/vms_input_dummy_repo.csv: OK, 181 rows
 
@@ -223,14 +222,15 @@ Commands that the next session should run first:
 
 What to review before commit:
 - Confirm src/analytics_vms/frames.py only implements the isolated ffmpeg frame validation wrapper.
+- Confirm validate_rtsp_frames() uses `-map 0:v:0` and `-an` after `-i <rtsp_url>`.
 - Confirm tests/test_frames.py uses mocks and does not require ffmpeg, real cameras, real RTSP endpoints, or real credentials.
-- Confirm tests/test_imports.py only adds import coverage for FrameValidationResult.
-- Confirm DEV_NOTES.md and AGENTS.md accurately describe one-branch-per-MVP methodology and the current handoff.
+- Confirm tests/test_frames.py verifies the video stream mapping, argument order, `min_frames`, list args, and absence of `shell`.
+- Confirm DEV_NOTES.md accurately describes one-branch-per-MVP methodology and the current hardening handoff.
 - Confirm no .local/, .venv/, real outputs, real IPs, real users, or real passwords were touched.
 
 Exact commit command suggested:
-git add AGENTS.md DEV_NOTES.md src/analytics_vms/frames.py tests/test_frames.py tests/test_imports.py
-git commit -m "feat: add ffmpeg frame validation"
+git add DEV_NOTES.md src/analytics_vms/frames.py tests/test_frames.py
+git commit -m "fix: require video stream for frame validation"
 
 Exact merge-to-main flow after review:
 git push origin mvp-1e-ffmpeg-frame-validation
@@ -351,7 +351,42 @@ Test result:
 Risks/pending:
 - validate_rtsp_frames() does not classify cameras or write reports.
 - frames_ok=1 only means ffmpeg decoded at least min_frames frames in this isolated piece.
+- Hardening pending: require explicit video mapping with `-map 0:v:0` and ignore audio with `-an`.
 - blackdetect and freezedetect remain unimplemented.
 - CSV reports, batch execution, and final camera classification remain unimplemented.
 - Unit tests mock subprocess.run and do not require ffmpeg installed.
 - Suggested next task: define MVP-1F scope after review.
+
+### 2026-05-06
+
+MVP-1E hardening prepared on branch mvp-1e-ffmpeg-frame-validation after de2bac4 was already pushed.
+
+Files modified:
+- src/analytics_vms/frames.py
+- tests/test_frames.py
+- DEV_NOTES.md
+
+Adjustment:
+- ffmpeg now forces explicit video stream selection with `-map 0:v:0`.
+- ffmpeg ignores audio with `-an`.
+- `frames_ok=1` requires ffmpeg to process the first video stream.
+- This avoids false positives with audio-only sources or sources without video.
+- Because de2bac4 was already pushed, close this as a second fix commit on the same MVP branch; do not amend or rewrite history.
+
+Tests adjusted:
+- Frame validation command expectations include `-map 0:v:0` and `-an`.
+- Added explicit coverage that video mapping appears after `-i <rtsp_url>` and before `-frames:v <min_frames>`.
+- Kept coverage that subprocess.run receives a list and does not receive `shell=True`.
+
+Commands executed:
+- git branch --show-current
+- git status --short --untracked-files=all
+- git log --oneline --decorate -8
+- pytest -q
+- analytics-vms --help
+- analytics-vms check-inventory examples/vms_input_dummy_repo.csv
+
+Test result:
+- pytest -q: 46 passed
+- analytics-vms --help: OK
+- analytics-vms check-inventory examples/vms_input_dummy_repo.csv: OK, 181 rows
