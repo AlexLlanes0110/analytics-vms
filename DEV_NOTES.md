@@ -16,13 +16,13 @@ ffprobe metadata is not enough to declare a camera OK.
 ## Current state
 
 Current branch:
-mvp-1d-ffprobe-timeout
+mvp-1e-ffmpeg-frame-validation
 
 Repo status:
-MVP-1D implemented in working tree; pending review/commit.
+MVP-1E committed and pushed; video-stream hardening pending review as a second fix commit.
 
 Next task:
-Suggested next task: MVP-1E - ffmpeg frame validation wrapper, pending confirmation.
+Suggested next task: MVP-1F - visual diagnostics detectors, pending confirmation.
 
 ## Closed MVPs
 
@@ -75,14 +75,31 @@ Done:
 - Unit tests with mocked subprocess.run; ffprobe is not required for tests.
 
 Known commit:
-- Pending review/commit.
+- aa3771d feat: add ffprobe timeout wrapper
+
+### MVP-1E - ffmpeg frame validation
+
+Done:
+- FrameValidationResult structured result for frame validation.
+- validate_rtsp_frames()
+- Timeout handling.
+- frames_ok signal based on ffmpeg decoding min_frames frames.
+- Explicit ffmpeg video stream selection with `-map 0:v:0`.
+- Audio ignored with `-an` so audio-only inputs cannot pass frame validation.
+- Safe handling for nonzero return code, missing ffmpeg, timeout, and invalid min_frames.
+- Credential masking in error/raw_stdout/raw_stderr.
+- Unit tests with mocked subprocess.run; ffmpeg is not required for tests.
+
+Known commit:
+- de2bac4 feat: add ffmpeg frame validation
+- Pending fix commit: harden ffmpeg video stream validation after review.
 
 ## Next task
 
-### Suggested MVP-1E - ffmpeg frame validation wrapper
+### Suggested MVP-1F - visual diagnostics detectors
 
 Goal:
-Implement a safe ffmpeg frame validation wrapper that can eventually produce the frames_ok signal.
+Implement optional black/freeze diagnostic wrappers after frame validation is closed.
 
 Expected files:
 - To be defined.
@@ -158,16 +175,76 @@ analytics-vms check-inventory examples/vms_input_dummy_repo.csv
 ## Last session summary
 
 Last completed task:
-MVP-1D - ffprobe timeout wrapper
+MVP-1E - ffmpeg frame validation
 
 Next task:
-Suggested MVP-1E - ffmpeg frame validation wrapper, pending confirmation.
+Suggested MVP-1F - visual diagnostics detectors, pending confirmation.
 
 Known risks:
 - Do not treat ffprobe success as camera OK.
 - Do not leak RTSP credentials in errors.
-- Do not execute real ffprobe during unit tests.
+- Do not execute real ffprobe or ffmpeg during unit tests.
 - Keep the next MVP isolated from classification and reports.
+
+## Handoff for next Codex session
+
+Current branch:
+mvp-1e-ffmpeg-frame-validation
+
+Current working tree status expected:
+- M DEV_NOTES.md
+- M src/analytics_vms/frames.py
+- M tests/test_frames.py
+
+MVP currently in progress:
+MVP-1E - ffmpeg frame validation hardening
+
+Implementation status:
+MVP-1E base implementation is committed and pushed as de2bac4. This hardening must be closed as a second fix commit on branch mvp-1e-ffmpeg-frame-validation; do not amend or rewrite history. There is no new CLI. There is no blackdetect/freezedetect, final camera classification, batch execution, or CSV reporting.
+
+Files changed:
+- DEV_NOTES.md
+- src/analytics_vms/frames.py
+- tests/test_frames.py
+
+Validations already run:
+- pytest -q: 46 passed
+- analytics-vms --help: OK
+- analytics-vms check-inventory examples/vms_input_dummy_repo.csv: OK, 181 rows
+
+Commands that the next session should run first:
+- git status --short --untracked-files=all
+- git branch --show-current
+- git log --oneline --decorate -10
+- pytest -q
+- analytics-vms --help
+- analytics-vms check-inventory examples/vms_input_dummy_repo.csv
+
+What to review before commit:
+- Confirm src/analytics_vms/frames.py only implements the isolated ffmpeg frame validation wrapper.
+- Confirm validate_rtsp_frames() uses `-map 0:v:0` and `-an` after `-i <rtsp_url>`.
+- Confirm tests/test_frames.py uses mocks and does not require ffmpeg, real cameras, real RTSP endpoints, or real credentials.
+- Confirm tests/test_frames.py verifies the video stream mapping, argument order, `min_frames`, list args, and absence of `shell`.
+- Confirm DEV_NOTES.md accurately describes one-branch-per-MVP methodology and the current hardening handoff.
+- Confirm no .local/, .venv/, real outputs, real IPs, real users, or real passwords were touched.
+
+Exact commit command suggested:
+git add DEV_NOTES.md src/analytics_vms/frames.py tests/test_frames.py
+git commit -m "fix: require video stream for frame validation"
+
+Exact merge-to-main flow after review:
+git push origin mvp-1e-ffmpeg-frame-validation
+git checkout main
+git pull origin main
+git merge --no-ff mvp-1e-ffmpeg-frame-validation -m "merge: complete mvp-1e ffmpeg frame validation"
+pytest -q
+analytics-vms --help
+analytics-vms check-inventory examples/vms_input_dummy_repo.csv
+git push origin main
+
+Next MVP suggested:
+MVP-1F - visual diagnostics detectors. Create the branch from updated main after MVP-1E is merged and main is pushed:
+git checkout -b mvp-1f-visual-diagnostics
 
 ## Update log
 
@@ -231,3 +308,85 @@ Adjustment before closing MVP-1D:
 - Added fixed MVP branch methodology to AGENTS.md and DEV_NOTES.md.
 - Hardened ffprobe output sanitization so masking failures cannot break run_ffprobe().
 - Protected password token extraction from malformed RTSP-like input.
+
+### 2026-05-06
+
+MVP-1E implemented on branch mvp-1e-ffmpeg-frame-validation.
+
+Files created/modified:
+- src/analytics_vms/frames.py
+- tests/test_frames.py
+- tests/test_imports.py
+- DEV_NOTES.md
+
+Classes/functions added:
+- FrameValidationResult
+- validate_rtsp_frames()
+
+Tests added:
+- success returncode 0 sets frames_ok=1 and ok=True
+- nonzero returncode sets frames_ok=0 and ok=False
+- timeout sets timed_out=True, frames_ok=0, and ok=False
+- FileNotFoundError handling
+- password masking in error/raw_stdout/raw_stderr
+- URL-encoded and decoded password token masking
+- subprocess.run called with a list of arguments
+- shell=True is not used
+- min_frames is passed to the ffmpeg command
+- invalid min_frames returns a clear structured error
+
+Commands executed:
+- git status --short --untracked-files=all
+- git branch --show-current
+- git log --oneline --decorate -10
+- pytest -q
+- analytics-vms --help
+- analytics-vms check-inventory examples/vms_input_dummy_repo.csv
+
+Test result:
+- pytest -q: 45 passed
+- analytics-vms --help: OK
+- analytics-vms check-inventory examples/vms_input_dummy_repo.csv: OK, 181 rows
+
+Risks/pending:
+- validate_rtsp_frames() does not classify cameras or write reports.
+- frames_ok=1 only means ffmpeg decoded at least min_frames frames in this isolated piece.
+- Hardening pending: require explicit video mapping with `-map 0:v:0` and ignore audio with `-an`.
+- blackdetect and freezedetect remain unimplemented.
+- CSV reports, batch execution, and final camera classification remain unimplemented.
+- Unit tests mock subprocess.run and do not require ffmpeg installed.
+- Suggested next task: define MVP-1F scope after review.
+
+### 2026-05-06
+
+MVP-1E hardening prepared on branch mvp-1e-ffmpeg-frame-validation after de2bac4 was already pushed.
+
+Files modified:
+- src/analytics_vms/frames.py
+- tests/test_frames.py
+- DEV_NOTES.md
+
+Adjustment:
+- ffmpeg now forces explicit video stream selection with `-map 0:v:0`.
+- ffmpeg ignores audio with `-an`.
+- `frames_ok=1` requires ffmpeg to process the first video stream.
+- This avoids false positives with audio-only sources or sources without video.
+- Because de2bac4 was already pushed, close this as a second fix commit on the same MVP branch; do not amend or rewrite history.
+
+Tests adjusted:
+- Frame validation command expectations include `-map 0:v:0` and `-an`.
+- Added explicit coverage that video mapping appears after `-i <rtsp_url>` and before `-frames:v <min_frames>`.
+- Kept coverage that subprocess.run receives a list and does not receive `shell=True`.
+
+Commands executed:
+- git branch --show-current
+- git status --short --untracked-files=all
+- git log --oneline --decorate -8
+- pytest -q
+- analytics-vms --help
+- analytics-vms check-inventory examples/vms_input_dummy_repo.csv
+
+Test result:
+- pytest -q: 46 passed
+- analytics-vms --help: OK
+- analytics-vms check-inventory examples/vms_input_dummy_repo.csv: OK, 181 rows
