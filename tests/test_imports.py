@@ -31,9 +31,7 @@ def test_modules_import() -> None:
     assert camera_check.CameraCheckResult(camera_id="dummy").status == "ERROR"
     assert batch_check.BatchCheckSummary().total == 0
     assert detection.run_detection_stub().black_events == 0
-    assert reports.build_detailed_rows([{"status": "NO_FRAMES"}]) == [
-        {"status": "NO_FRAMES"}
-    ]
+    assert reports.build_summary_rows(batch_check.BatchCheckSummary())[0]["total"] == 0
     assert hasattr(rtsp, "build_rtsp_url")
 
 

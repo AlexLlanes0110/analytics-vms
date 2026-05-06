@@ -198,23 +198,19 @@ Se calculan:
 
 #### `OK`
 
-Cuando `frames_ok = 1`.
+Cuando `frames_ok == 1`.
 
-#### `DOWN`
+#### `PROBE_FAILED`
 
-Cuando no hubo conectividad útil o el servicio fue inaccesible.
-
-#### `NO_RTSP`
-
-Cuando el host responde en algún nivel, pero falla auth, path o negociación RTSP.
+Cuando `ffprobe` no obtuvo metadata útil. Esto incluye cámaras o endpoints RTSP que no responden a la prueba de metadata.
 
 #### `NO_FRAMES`
 
-Cuando hubo metadata o negociación útil, pero no se pudieron decodificar frames.
+Cuando `ffprobe` respondió, pero `ffmpeg` no pudo decodificar frames reales.
 
 #### `ERROR`
 
-Cuando ocurre un fallo inesperado no clasificado.
+Cuando ocurre un fallo inesperado del software, construcción o excepción.
 
 ---
 
