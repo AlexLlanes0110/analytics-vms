@@ -38,7 +38,11 @@ Salida actual:
 - CSV resumen por sitio
 - payload JSON mínimo
 
-No hay CLI de ejecución de cámaras todavía en MVP-1I.
+CLI operador:
+
+```bash
+python3 -m analytics_vms.cli check-cameras INVENTORY.csv --out-dir OUTPUT_DIR
+```
 
 ## Estados actuales
 
@@ -56,8 +60,20 @@ No hay CLI de ejecución de cámaras todavía en MVP-1I.
 Campos actuales:
 
 ```text
-camera_id
+project_code
+municipality
+site_type
+site_code
+site_name
+traffic_direction
+camera_role
 camera_name
+brand
+ip
+rtsp_port
+rtsp_path
+transport
+camera_id
 status
 probe_ok
 frames_ok
@@ -66,7 +82,8 @@ freeze_detected
 error
 ```
 
-No se incluye URL RTSP en los reportes de MVP-1I.
+No se incluyen `username`, `password`, `credential_id` ni URLs RTSP completas en
+los reportes.
 
 ## Reporte resumen
 

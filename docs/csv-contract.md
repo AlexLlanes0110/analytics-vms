@@ -53,8 +53,20 @@ Campos:
 
 | Columna | Tipo | Descripción |
 |---|---|---|
-| `camera_id` | string | Identificador estable usado por el resultado. |
+| `project_code` | string | Código del proyecto o despliegue desde el inventario. |
+| `municipality` | string | Municipio o ubicación administrativa. |
+| `site_type` | string | Tipo de sitio. |
+| `site_code` | string | Identificador corto del sitio. |
+| `site_name` | string | Nombre legible del sitio. |
+| `traffic_direction` | string | Sentido de tráfico, si aplica. |
+| `camera_role` | string | Rol lógico de la cámara. |
 | `camera_name` | string | Nombre de cámara desde el inventario, si está disponible. |
+| `brand` | string | Marca o `unknown`. |
+| `ip` | string | IP o host del endpoint RTSP. |
+| `rtsp_port` | int | Puerto RTSP. |
+| `rtsp_path` | string | Path RTSP, sin credenciales. |
+| `transport` | string | `tcp` o `udp`. |
+| `camera_id` | string | Identificador estable usado por el resultado. |
 | `status` | string | `OK`, `PROBE_FAILED`, `NO_FRAMES` o `ERROR`. |
 | `probe_ok` | int | `1` si ffprobe obtuvo metadata útil; `0` si no. |
 | `frames_ok` | int | `1` si ffmpeg decodificó frames reales; `0` si no. |
@@ -62,12 +74,14 @@ Campos:
 | `freeze_detected` | int | `1` si freezedetect detectó señal; `0` si no. |
 | `error` | string | Mensaje sanitizado. |
 
+No se incluyen `username`, `password`, `credential_id` ni URLs RTSP completas.
+
 Ejemplo:
 
 ```csv
-camera_id,camera_name,status,probe_ok,frames_ok,black_detected,freeze_detected,error
-DEMO-PMI-SITE001-PTZ,DEMO-PMI-SITE001-PTZ,OK,1,1,0,0,
-DEMO-PMI-SITE002-PTZ,DEMO-PMI-SITE002-PTZ,PROBE_FAILED,0,0,0,0,probe failed on dummy endpoint
+project_code,municipality,site_type,site_code,site_name,traffic_direction,camera_role,camera_name,brand,ip,rtsp_port,rtsp_path,transport,camera_id,status,probe_ok,frames_ok,black_detected,freeze_detected,error
+DEMO01,Sample Municipality A,PMI,SITE001,DEMO-PMI-SITE001,,PTZ,DEMO-PMI-SITE001-PTZ,unknown,192.0.2.1,554,/Streaming/Channels/101,tcp,DEMO-PMI-SITE001-PTZ,OK,1,1,0,0,
+DEMO01,Sample Municipality A,PMI,SITE002,DEMO-PMI-SITE002,,PTZ,DEMO-PMI-SITE002-PTZ,unknown,192.0.2.6,554,/Streaming/Channels/101,tcp,DEMO-PMI-SITE002-PTZ,PROBE_FAILED,0,0,0,0,probe failed on dummy endpoint
 ```
 
 ## CSV resumen global
