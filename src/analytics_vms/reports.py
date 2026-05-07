@@ -4,17 +4,35 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote, unquote
 
 from analytics_vms.batch_check import BatchCheckResult, BatchCheckSummary
 from analytics_vms.camera_check import CameraCheckResult
 
 
-DETAILED_FIELDNAMES = (
-    "camera_id",
+INVENTORY_DETAIL_FIELDNAMES = (
+    "project_code",
+    "municipality",
+    "site_type",
+    "site_code",
+    "site_name",
+    "traffic_direction",
+    "camera_role",
     "camera_name",
+    "brand",
+    "ip",
+    "rtsp_port",
+    "rtsp_path",
+    "transport",
+)
+
+DETAILED_FIELDNAMES = (
+    *INVENTORY_DETAIL_FIELDNAMES,
+    "camera_id",
     "status",
     "probe_ok",
     "frames_ok",
@@ -58,17 +76,25 @@ def build_detailed_rows(
     for result in _iter_results(results):
         camera_id = str(_result_value(result, "camera_id", ""))
         source_row = source_by_camera_id.get(camera_id, {})
-        camera_name = _mapping_text(source_row, "camera_name") or camera_id
+        inventory_details = {
+            fieldname: _mapping_text(source_row, fieldname)
+            for fieldname in INVENTORY_DETAIL_FIELDNAMES
+        }
+        if not inventory_details["camera_name"]:
+            inventory_details["camera_name"] = camera_id
         rows.append(
             {
+                **inventory_details,
                 "camera_id": camera_id,
-                "camera_name": camera_name,
                 "status": str(_result_value(result, "status", "")),
                 "probe_ok": _result_int(result, "probe_ok"),
                 "frames_ok": _result_int(result, "frames_ok"),
                 "black_detected": _result_int(result, "black_detected"),
                 "freeze_detected": _result_int(result, "freeze_detected"),
-                "error": str(_result_value(result, "error", "")),
+                "error": _sanitize_report_text(
+                    _result_value(result, "error", ""),
+                    source_row=source_row,
+                ),
             }
         )
 
@@ -256,11 +282,11 @@ def _add_result_counts(
 
 def _source_rows_by_camera_id(
     source_rows: Iterable[Mapping[str, Any]] | None,
-) -> dict[str, Mapping[str, Any]]:
+) -> dict[str, Any]:
     if source_rows is None:
         return {}
 
-    rows_by_camera_id: dict[str, Mapping[str, Any]] = {}
+    rows_by_camera_id: dict[str, Any] = {}
     for row in source_rows:
         camera_id = _camera_id(row)
         if camera_id and camera_id not in rows_by_camera_id:
@@ -268,16 +294,16 @@ def _source_rows_by_camera_id(
     return rows_by_camera_id
 
 
-def _camera_id(row: Mapping[str, Any]) -> str:
+def _camera_id(row: Any) -> str:
     for key in ("camera_id", "camera_name", "ip", "host", "site_code"):
-        value = row.get(key)
+        value = _source_value(row, key)
         if value is not None and str(value).strip():
             return str(value).strip()
     return ""
 
 
-def _mapping_text(row: Mapping[str, Any], key: str) -> str:
-    value = row.get(key, "")
+def _mapping_text(row: Any, key: str) -> str:
+    value = _source_value(row, key)
     if value is None:
         return ""
     return str(value)
@@ -299,3 +325,34 @@ def _result_int(result: CameraCheckResult | Mapping[str, Any], key: str) -> int:
         return int(value)
     except (TypeError, ValueError):
         return 0
+
+
+def _source_value(row: Any, key: str, default: Any = "") -> Any:
+    if isinstance(row, Mapping):
+        return row.get(key, default)
+    return getattr(row, key, default)
+
+
+def _sanitize_report_text(value: Any, *, source_row: Any) -> str:
+    """Redact credentials and full RTSP URLs from report text fields."""
+    text = "" if value is None else str(value)
+    if not text:
+        return ""
+
+    text = re.sub(r"rtsp://[^\s'\"<>]+", "[rtsp_url_redacted]", text)
+    for secret in _source_secret_tokens(source_row):
+        text = text.replace(secret, "***")
+    return text
+
+
+def _source_secret_tokens(source_row: Any) -> set[str]:
+    tokens: set[str] = set()
+    for key in ("credential_id", "username", "password"):
+        value = _source_value(source_row, key)
+        if value is None:
+            continue
+
+        text = str(value)
+        tokens.update({text, quote(text, safe=""), unquote(text)})
+
+    return {token for token in tokens if token}

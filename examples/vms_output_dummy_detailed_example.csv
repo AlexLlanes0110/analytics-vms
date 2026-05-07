@@ -1,6 +1,6 @@
-camera_id,camera_name,status,probe_ok,frames_ok,black_detected,freeze_detected,error
-DEMO-PMI-SITE001-PTZ,DEMO-PMI-SITE001-PTZ,OK,1,1,0,0,
-DEMO-PMI-SITE001-FJ1,DEMO-PMI-SITE001-FJ1,OK,1,1,1,0,
-DEMO-PMI-SITE002-PTZ,DEMO-PMI-SITE002-PTZ,PROBE_FAILED,0,0,0,0,probe failed on dummy endpoint
-DEMO-ARC-SITE003-LPR_1,DEMO-ARC-SITE003-LPR_1,NO_FRAMES,1,0,0,0,no frames decoded
-DEMO-ARC-SITE003-LPR_2,DEMO-ARC-SITE003-LPR_2,ERROR,0,0,0,0,unexpected dummy error
+project_code,municipality,site_type,site_code,site_name,traffic_direction,camera_role,camera_name,brand,ip,rtsp_port,rtsp_path,transport,camera_id,status,probe_ok,frames_ok,black_detected,freeze_detected,error
+DEMO01,Sample Municipality A,PMI,SITE001,DEMO-PMI-SITE001,,PTZ,DEMO-PMI-SITE001-PTZ,unknown,192.0.2.1,554,/Streaming/Channels/101,tcp,DEMO-PMI-SITE001-PTZ,OK,1,1,0,0,
+DEMO01,Sample Municipality A,PMI,SITE001,DEMO-PMI-SITE001,,FJ1,DEMO-PMI-SITE001-FJ1,unknown,192.0.2.2,554,/Streaming/Channels/101,tcp,DEMO-PMI-SITE001-FJ1,OK,1,1,1,0,
+DEMO01,Sample Municipality A,PMI,SITE002,DEMO-PMI-SITE002,,PTZ,DEMO-PMI-SITE002-PTZ,unknown,192.0.2.6,554,/Streaming/Channels/101,tcp,DEMO-PMI-SITE002-PTZ,PROBE_FAILED,0,0,0,0,probe failed on dummy endpoint
+DEMO01,Sample Municipality A,ARC,SITE003,DEMO-ARC-SITE003,ENTRY,LPR_1,DEMO-ARC-SITE003-LPR_1,unknown,192.0.2.30,554,/Streaming/Channels/101,tcp,DEMO-ARC-SITE003-LPR_1,NO_FRAMES,1,0,0,0,no frames decoded
+DEMO01,Sample Municipality A,ARC,SITE003,DEMO-ARC-SITE003,EXIT,LPR_2,DEMO-ARC-SITE003-LPR_2,unknown,192.0.2.31,554,/Streaming/Channels/101,tcp,DEMO-ARC-SITE003-LPR_2,ERROR,0,0,0,0,unexpected dummy error

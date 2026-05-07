@@ -62,38 +62,93 @@ def _source_rows() -> list[dict[str, str]]:
     return [
         {
             "camera_id": "CAM-ERROR",
+            "project_code": "DEMO01",
+            "municipality": "Sample Municipality C",
+            "site_type": "PMI",
             "camera_name": "Dummy Error",
+            "traffic_direction": "",
+            "camera_role": "PTZ",
+            "brand": "unknown",
+            "ip": "192.0.2.13",
+            "rtsp_port": "554",
+            "rtsp_path": "/Streaming/Channels/101",
+            "transport": "tcp",
             "site_code": "SITE-C",
             "site_name": "Dummy Site C",
+            "credential_id": "cred-secret",
+            "username": "dummy-user",
+            "password": "dummy-pass",
         },
         {
             "camera_id": "CAM-PROBE",
+            "project_code": "DEMO01",
+            "municipality": "Sample Municipality B",
+            "site_type": "PMI",
             "camera_name": "Dummy Probe",
+            "traffic_direction": "",
+            "camera_role": "PTZ",
+            "brand": "unknown",
+            "ip": "192.0.2.12",
+            "rtsp_port": "554",
+            "rtsp_path": "/Streaming/Channels/101",
+            "transport": "tcp",
             "site_code": "SITE-B",
             "site_name": "Dummy Site B",
         },
         {
             "camera_id": "CAM-NO-FRAMES",
+            "project_code": "DEMO01",
+            "municipality": "Sample Municipality A",
+            "site_type": "PMI",
             "camera_name": "Dummy No Frames",
+            "traffic_direction": "",
+            "camera_role": "FJ1",
+            "brand": "unknown",
+            "ip": "192.0.2.11",
+            "rtsp_port": "554",
+            "rtsp_path": "/Streaming/Channels/101",
+            "transport": "tcp",
             "site_code": "SITE-A",
             "site_name": "Dummy Site A",
         },
         {
             "camera_id": "CAM-OK",
+            "project_code": "DEMO01",
+            "municipality": "Sample Municipality A",
+            "site_type": "PMI",
             "camera_name": "Dummy OK",
+            "traffic_direction": "",
+            "camera_role": "PTZ",
+            "brand": "unknown",
+            "ip": "192.0.2.10",
+            "rtsp_port": "554",
+            "rtsp_path": "/Streaming/Channels/101",
+            "transport": "tcp",
             "site_code": "SITE-A",
             "site_name": "Dummy Site A",
         },
     ]
 
 
-def test_build_detailed_rows_uses_source_rows_and_omits_rtsp_url() -> None:
+def test_build_detailed_rows_uses_source_rows_and_omits_secrets() -> None:
     rows = reports.build_detailed_rows(_batch_result(), source_rows=_source_rows())
 
     assert list(rows[0]) == list(reports.DETAILED_FIELDNAMES)
     assert rows[0] == {
-        "camera_id": "CAM-OK",
+        "project_code": "DEMO01",
+        "municipality": "Sample Municipality A",
+        "site_type": "PMI",
+        "site_code": "SITE-A",
+        "site_name": "Dummy Site A",
+        "traffic_direction": "",
+        "camera_role": "PTZ",
         "camera_name": "Dummy OK",
+        "brand": "unknown",
+        "ip": "192.0.2.10",
+        "rtsp_port": "554",
+        "rtsp_path": "/Streaming/Channels/101",
+        "transport": "tcp",
+        "camera_id": "CAM-OK",
         "status": "OK",
         "probe_ok": 1,
         "frames_ok": 1,
@@ -102,6 +157,29 @@ def test_build_detailed_rows_uses_source_rows_and_omits_rtsp_url() -> None:
         "error": "",
     }
     assert "rtsp_url_masked" not in rows[0]
+    assert "username" not in rows[0]
+    assert "password" not in rows[0]
+
+
+def test_build_detailed_rows_sanitizes_error_text() -> None:
+    rows = reports.build_detailed_rows(
+        [
+            CameraCheckResult(
+                camera_id="CAM-ERROR",
+                status="ERROR",
+                error=(
+                    "failed rtsp://dummy-user:dummy-pass@192.0.2.13:554/stream "
+                    "with cred-secret"
+                ),
+            )
+        ],
+        source_rows=_source_rows(),
+    )
+
+    assert rows[0]["error"] == "failed [rtsp_url_redacted] with ***"
+    assert "dummy-user" not in rows[0]["error"]
+    assert "dummy-pass" not in rows[0]["error"]
+    assert "cred-secret" not in rows[0]["error"]
 
 
 def test_build_summary_rows_from_batch_result() -> None:
@@ -197,6 +275,8 @@ def test_write_csv_report(tmp_path: Path) -> None:
     lines = path.read_text(encoding="utf-8").splitlines()
     assert lines[0] == ",".join(reports.DETAILED_FIELDNAMES)
     assert "rtsp://" not in path.read_text(encoding="utf-8")
+    assert "username" not in path.read_text(encoding="utf-8")
+    assert "password" not in path.read_text(encoding="utf-8")
 
 
 def test_build_report_payload_and_write_json_report(tmp_path: Path) -> None:
@@ -206,6 +286,7 @@ def test_build_report_payload_and_write_json_report(tmp_path: Path) -> None:
     reports.write_json_report(path, payload)
 
     assert payload["summary"]["total"] == 4
+    assert payload["details"][0]["project_code"] == "DEMO01"
     assert payload["details"][0]["camera_name"] == "Dummy OK"
     assert json.loads(path.read_text(encoding="utf-8")) == payload
 
